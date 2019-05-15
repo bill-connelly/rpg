@@ -25,7 +25,7 @@ WHITE = (255,255,255)
 SINE = 1
 SQUARE = 0
 
-import _rpg as rpg
+import _rpigratings as rpigratings
 
 def build_grating(filename,spac_freq,temp_freq,
                  angle=0, resolution = (1280,720),
@@ -54,7 +54,7 @@ def build_grating(filename,spac_freq,temp_freq,
     if percent_screen_filled>100 or percent_screen_filled<0:
         raise ValueError("percent_screen_filled param set to invalid value of %d, must be in [0,100]"
                          %percent_screen_filled)
-    rpg.draw_grating(filename,angle,spac_freq,temp_freq,
+    rpigratings.draw_grating(filename,angle,spac_freq,temp_freq,
                      resolution[0],resolution[1],waveform,
                      percent_screen_filled, verbose)
 
@@ -96,7 +96,7 @@ class Screen:
         :param resolution: a tuple of the desired width of the display
           resolution as (width, height). Defaults to (1280,720).
          """
-        self.capsule = rpg.init(resolution[0],resolution[1])
+        self.capsule = rpigratings.init(resolution[0],resolution[1])
 
     def load_grating(self,filename):
         """
@@ -124,7 +124,7 @@ class Screen:
         grating began to play (in Unix Time).
         """
         try:
-                rawtuple = rpg.display_grating(self.capsule, grating.capsule)
+                rawtuple = rpigratings.display_grating(self.capsule, grating.capsule)
                 return GratPerfRec(*rawtuple)
         except:
                 self.close()
@@ -144,7 +144,7 @@ class Screen:
                 self.close()
                 raise ValueError("Color must be a tuple of RBG values"
                                  + "each between 0 and 255.")
-        try: rpg.display_color(self.capsule,color[0],color[1],color[2])
+        try: rpigratings.display_color(self.capsule,color[0],color[1],color[2])
         except:
             self.close()
             raise
@@ -222,7 +222,7 @@ class Screen:
         screen settings.
         :rtype None:
         """
-        rpg.close_display(self.capsule)
+        rpigratings.close_display(self.capsule)
         del self
     def __del__(self):
         self.close()
@@ -234,7 +234,7 @@ class Grating:
 		if type(master).__name__ != "Screen":
 			raise ValueError("master must be a Screen instance")
 		self.master = master
-		self.capsule = rpg.load_grating(master.capsule,filename)
+		self.capsule = rpigratings.load_grating(master.capsule,filename)
 	def __del__(self):
-		rpg.unload_grating(self.capsule)
+		rpigratings.unload_grating(self.capsule)
 

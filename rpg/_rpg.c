@@ -416,7 +416,7 @@ static PyObject* py_closedisplay(PyObject* self, PyObject* args){
 
 
 
-static PyMethodDef _rpigratings_methods[] = { 
+static PyMethodDef _rpg_methods[] = { 
     {   
         "init", py_init, METH_VARARGS,
         "Initialise the display and return a framebuffer object.\n"
@@ -496,9 +496,9 @@ static PyMethodDef _rpigratings_methods[] = {
 };
 
 
-static struct PyModuleDef _rpigratings_definition = { 
+static struct PyModuleDef _rpg_definition = { 
     PyModuleDef_HEAD_INIT,
-    "_rpigratings",
+    "_rpg",
     "A Python module that displays drifting gratings\n"
     "on Raspberry Pis. This module should be used from\n"
     "the terminal rather than a windowing system for\n"
@@ -506,7 +506,7 @@ static struct PyModuleDef _rpigratings_definition = {
     "with Ctrl+Alt+F1 on raspbian (Ctrl+Alt+F7 will return\n"
     "to the windowing system).\n\n"
     "Typical usage:\n"
-    " >>> import _rpigratings as rg\n"
+    " >>> import _rpg as rg\n"
     " >>> #First create a grating file...\n"
     " >>> rg.draw_grating(\"grat_file\",60,0.5,3,1680,1050)\n"
     " >>> #Then initialise the display...\n"
@@ -521,11 +521,11 @@ static struct PyModuleDef _rpigratings_definition = {
     " >>> #Remember: uninitialise module to restore screen settings\n"
     " >>> rg.close_display(root)\n",
     -1, 
-    _rpigratings_methods
+    _rpg_methods
 };
 
 
-PyMODINIT_FUNC PyInit__rpigratings(void) {
+PyMODINIT_FUNC PyInit__rpg(void) {
     Py_Initialize();
-    return PyModule_Create(&_rpigratings_definition);
+    return PyModule_Create(&_rpg_definition);
 }

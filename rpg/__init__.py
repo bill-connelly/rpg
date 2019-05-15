@@ -25,28 +25,7 @@ WHITE = (255,255,255)
 SINE = 1
 SQUARE = 0
 
-# We wish to import _rpigratings from its
-# relative path /build/lib.linux-armv7l-3.4
-# but we must not have the "-" character in
-# our import command, so 
-#    >>> import build.lib.linux-armv7l-3.4._rpigratings
-# is an illegal command.
-# Therefore we will use sys.path to modify the lookup
-# path for modules to include the relevant directory.
-
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-BASE_DIR = os.path.dirname(PROJECT_ROOT)
-
-
-try:
-	PATH = BASE_DIR + "/build/lib.linux-armv7l-3.4"
-	sys.path.append(PATH)
-	import _rpg as rpg
-except ImportError:
-	PATH = BASE_DIR + "/build/lib.linux-armv7l-3.5"
-	sys.path[-1] = PATH
-	import _rpg as rpg
-
+import _rpg as rpg
 
 def build_grating(filename,spac_freq,temp_freq,
                  angle=0, resolution = (1280,720),

@@ -1,20 +1,23 @@
-## rpigratings - A High Performance Raspberry Pi Drifting Grating Generation 
-                   and Display Module for Python 3, written in C.
+## rpigratings - A High Performance Raspberry Pi Drifting Grating Generation an$
+
+## Download
+
+    $ git clone https://github.com/bill-connelly/rpg
 
 ## Build
 
-    python3 setup.py build
+    $ cd rpg
+    $ pip3 install .
 
 ## Run
 
-    $ cd build/lib.linux-armv7l-3.4
     $ python3
-    >>> import rpigratings as rg
+    >>> import rpigratings as rgp
     >>> #Create a grating file called "filename" with
     >>> #spacial and temporal freqs of 0.2 and 1 respectively
-    >>> rg.draw_grating("filename",0.2,1,angle=30)
+    >>> rpg.build_grating("filename",0.2,1,angle=30,resolution=())
     >>> #Create a Screen instance
-    >>> root = rg.Screen()
+    >>> root = rpg.Screen()
     >>> #load our "filename" grating into memory
     >>> root.load_grating("filename")
     >>> #display the grating
@@ -23,6 +26,7 @@
     >>> root.unload_grating()
     >>> #finally, restore the display to previous settings
     >>> root.close()
+
 
 
 Tested on Raspian GNU/Linux 8, Python *3.4.2*.

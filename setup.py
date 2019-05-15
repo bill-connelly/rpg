@@ -3,8 +3,8 @@
 
 from distutils.core import setup, Extension
 
-rpygrating_module = Extension('_rpg', 
-		sources = ['rpg/_rpg.c'],
+rpygrating_module = Extension('_rpigratings', 
+		sources = ['rpg/_rpigratings.c'],
                 extra_compile_args = ['-O3'])
 
 setup(name='rpg',

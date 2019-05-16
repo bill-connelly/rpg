@@ -28,8 +28,9 @@ SQUARE = 0
 import _rpigratings as rpigratings
 
 def build_grating(filename,spac_freq,temp_freq,
-                 angle=0, resolution = (1280,720),
-                 waveform = SQUARE, percent_screen_filled = 100, verbose=True):
+                  angle=0, resolution = (1280,720),
+                  waveform = SQUARE, percent_screen_filled = 100,
+                  verbose=True):
     """
     Create a raw animation file of a drifting grating called filename.
     The grating's angle of propogation is measured counterclockwise
@@ -60,14 +61,16 @@ def build_grating(filename,spac_freq,temp_freq,
 
 
 def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
-			temp_freq, resolution = (1280,720)):
+			   temp_freq, resolution = (1280,720), waveform = SQUARE,
+                           percent_screen_filled = 100, verbose = True):
 
 	if len(list_of_angles) != len(set(list_of_angles)):
 		raise ValueError("list_of_angles must not contain duplicate elements")
 	os.mkdir(path_to_directory)
 	os.chdir(path_to_directory)
 	for angle in list_of_angles:
-		build_grating(str(angle), spac_freq, temp_freq, angle, resolution, False)
+		build_grating(str(angle), spac_freq, temp_freq, angle, resolution, waveform,
+                              percent_screen_filled, verbose)
 
 
 class Screen:

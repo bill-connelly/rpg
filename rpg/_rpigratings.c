@@ -18,7 +18,7 @@
 #define SINE 1
 #define SQUARE 0
 #define FPS 60 //The target FPS for animations
-#define DURATION 2 //The duration of an animation.
+#define DURATION 1 //The duration of an animation.
 #define FRAMES DURATION*FPS
 #define DEGREES_SUBTENDED 80 //The degrees of visual angle
 			     // subtended by the screen
@@ -230,23 +230,11 @@ int draw_grating(char * filename, double angle, double sf, double tf, int width,
 	double actual_tf = ((double)(speed*FPS)) / wavelength;
 	int x_border = fb0.width*(100-percent_screen_filled)/200;
 	int y_border = fb0.height*(100-percent_screen_filled)/200;
-	while(verbose&&actual_tf!=tf){
-		char response;
+	if(verbose&&actual_tf!=tf){
 		printf("Grating %s has a requested temporal frequency of %f,\n" 
 			"Actual temporal frequency will be %f (%f% requested)\n"
 			"To stop receving these warnings, set verbose arg to False.\n"
-			"(You might want to do this if you are building many gratings)\n"
-			"Would you like to proceed? [y/n] ",filename,tf,actual_tf,100*actual_tf/tf);
-		if(scanf("%c",&response)==0){
-			perror("Error parsing stdin");
-			exit(1);
-		}
-		if(response=="n"[0]||response=="N"[0]){
-			return 1;
-		}
-		else if( response=="y"[0]||response=="Y"[0] ){
-			break;
-		}
+			"(You might want to do this if you are building many gratings)\n",filename,tf,actual_tf,100*actual_tf/tf);
 	}
 	//Calculate the minimum number of frames required for a full cycle
 	//(worst case is just FPS*DURATION) and write it, tf, and sf in a header.

@@ -15,6 +15,7 @@ performance.
 """
 import time as t
 import os, sys,random
+import RPi.GPIO as GPIO
 from collections import namedtuple
 
 GratPerfRec = namedtuple("GratingPerformanceRecord",["fastest_frame","slowest_frame","start_time"])
@@ -67,7 +68,7 @@ def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
 	if len(list_of_angles) != len(set(list_of_angles)):
 		raise ValueError("list_of_angles must not contain duplicate elements")
 	cwd = os.getcwd()
-      	os.mkdir(path_to_directory)
+	os.mkdir(path_to_directory)
 	os.chdir(path_to_directory)
 	for angle in list_of_angles:
 		build_grating(str(angle), spac_freq, temp_freq, angle, resolution, waveform,
@@ -161,8 +162,8 @@ class Screen:
         of the log file is given by path_of_log_file, and defaults to the
         highest level directory. Gratings are seperated by one second of midgray.
         """
-	
-	cwd = os.getcwd()
+
+        cwd = os.getcwd()
 
         os.chdir(dir_containing_gratings)
         gratings = []
@@ -180,7 +181,7 @@ class Screen:
         with open(path_of_log_file, "a") as file:
             file.writelines(record)
 
-	os.chdir(cwd)
+        os.chdir(cwd)
 
     def display_rand_grating_on_pulse(self, dir_containing_gratings, path_of_log_file="/rpglog.txt"):
         ##                                                ##

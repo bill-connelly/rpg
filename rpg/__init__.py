@@ -16,6 +16,7 @@ performance.
 import time as t
 import os, sys,random
 import RPi.GPIO as GPIO
+GPIO.setmode(GPIO.BOARD)
 from collections import namedtuple
 
 GratPerfRec = namedtuple("GratingPerformanceRecord",["fastest_frame","slowest_frame","start_time"])
@@ -188,10 +189,10 @@ class Screen:
         ##THIS IS THE FUNCTION THAT RESPONDS TO GPIO INPUT##
         ##                                                ##
         """
-        Upon receiving a TTL pulse, choose a grating at random from
-        dir_containing_gratings and display it. Each grating in the 
-        directory is guaranteed to be displayed once before any
-        grating is displayed for the second time, and so on.
+        Upon receiving a 3.3V pulse (NOT 5V!!!), choose a grating at
+        random from dir_containing_gratings and display it. Each
+        grating in the directory is guaranteed to be displayed once
+        before any grating is displayed for the second time, and so on.
         When not displaying gratings the screen will be filled
         by midgray.
         """ 
@@ -208,6 +209,8 @@ class Screen:
         #on memory space
         remaining_gratings = gratings.copy()
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
+        GPIO.setup(5, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
+        GPIO.add_event_detect(5, GPIO.RISING, bouncetime = 5)
         #Mainloop
         while True:
             t.sleep(0.01)

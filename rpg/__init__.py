@@ -156,7 +156,7 @@ class Screen:
             self.close()
             raise
 
-    def display_gratings_randomly(self, dir_containing_gratings, path_of_log_file="/rpglog.txt"):
+    def display_gratings_randomly(self, dir_containing_gratings, path_of_log_file="rpglog.txt"):
         """
         For each file in directory dir_containing_gratings, attempt to display
         that file as a grating. The order of display is randomised. The location
@@ -184,10 +184,11 @@ class Screen:
 
         os.chdir(cwd)
 
-    def display_rand_grating_on_pulse(self, dir_containing_gratings, path_of_log_file="/rpglog.txt"):
+    def display_rand_grating_on_pulse(self, dir_containing_gratings, path_of_log_file="rpglog.txt"):
         ##                                                ##
         ##THIS IS THE FUNCTION THAT RESPONDS TO GPIO INPUT##
         ##                                                ##
+
         """
         Upon receiving a 3.3V pulse (NOT 5V!!!), choose a grating at
         random from dir_containing_gratings and display it. Each
@@ -195,7 +196,8 @@ class Screen:
         before any grating is displayed for the second time, and so on.
         When not displaying gratings the screen will be filled
         by midgray.
-        """ 
+        """
+ 
         self.display_color(GRAY)
         #Load all the files in dir into a list along with their names
 
@@ -218,18 +220,18 @@ class Screen:
                 #Get a random index in remaining_gratings
                 index = random.randint(0,len(remaining_gratings)-1)
                 #display that grating
-                self.display_grating(remaining_gratings[index])
+                perf = self.display_grating(remaining_gratings[index][0])
                 #display mid-gray
                 self.display_color(GRAY)
-                #remove that grating from remaining_gratings
-                remaining_gratings.pop(index)
-                #if remaining_gratings is empty, refill it
-                if len(remaining_gratings) == 0:
-                    remaining_gratings = gratings.copy()
                 #log the event to file
                 with open(path_of_log_file, "a") as file:
                     file.write("Grating %s displayed starting at %d (unix time); fastest frame at %.2f FPS, slowest frame at %.2f FPS\n" 
-                                %(grating[1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
+                                %(remaining_gratings[index][0],perf.start_time,perf.fastest_frame,perf.slowest_frame))
+
+                remaining_gratings.pop(index)
+                if len(remaining_gratings) == 0:
+                    remaining_gratings = gratings.copy()
+
 
     def close(self):
         """

@@ -193,7 +193,7 @@ class Screen:
         for grating in gratings:
             perf = self.display_grating(grating[0])
             self.display_color(GRAY)
-            record.append("Grating %s displayed starting at %d (unix time); fastest frame at %.2f FPS, slowest frame at %.2f FPS\n" 
+            record.append("Grating: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
                            %(grating[1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
             t.sleep(1)
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
@@ -222,7 +222,7 @@ class Screen:
         os.chdir(dir_containing_gratings)
         gratings = []
         for file in os.listdir():
-            gratings.append((self.load_grating(file),dir_containing_grating + "/" + file))
+            gratings.append((self.load_grating(file),dir_containing_gratings + "/" + file))
         #Create a copy of that list to hold gratings that
         #haven't been displayed yet
         #This is a shallow copy, so it shouldn't double up
@@ -243,7 +243,7 @@ class Screen:
                 self.display_color(GRAY)
                 #log the event to file
                 with open(path_of_log_file, "a") as file:
-                    file.write("Grating %s \t Displayed starting at (unix time) %d \t Fastest frame (FPS) %.2f \t slowest frame (FPS) %.2f \n" 
+                    file.write("Grating: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
                                 %(remaining_gratings[index][1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
 
                 remaining_gratings.pop(index)

@@ -157,13 +157,13 @@ uint16_t sinewave(int x, int y, int t, int wavelength, int speed, double angle, 
 	double brightness;
 	double x_prime;
 	if(angle == ANGLE_0){
-		x_prime = -x;
+		x_prime = -x + speed*t;
 	}else if(angle == ANGLE_90){
-		x_prime = y;
+		x_prime = y + speed*t;
 	}else if(angle==ANGLE_180){
-		x_prime = x;
+		x_prime = x + speed*t;
 	}else if(angle==ANGLE_270){
-		x_prime = -y;
+		x_prime = -y + speed*t;
 	}else{
 		x_prime = (cosine*x + sine*y)+(speed*t);
 	}

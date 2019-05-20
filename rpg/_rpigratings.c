@@ -121,10 +121,10 @@ int flip_buffer(int buffer_num, fb_config fb0){
 }
 
 
-uint16_t squarewave(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine){
+uint16_t squarewave(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine, double weighting){
 	//Returns a (x,y) pixel's brightness for a squarewave
-	unsigned short black = 0x0000;
-	unsigned short white = 0xffff;
+	unsigned short black = 0;
+	unsigned short white = 255;
 	double brightness;
 	double x_prime, int_part, frac_part;
 	if(angle == ANGLE_0){
@@ -141,13 +141,18 @@ uint16_t squarewave(int x, int y, int t, int wavelength, int speed, double angle
 	frac_part = modf(x_prime,&int_part);
 	brightness = ( ((double) ((((int)(int_part))%wavelength + wavelength)%wavelength)+frac_part) / wavelength);
 	if(brightness < 0.5){
-		return white;}
-	return black;
+		brightness = white;
+	} else {
+		brightness = black;
+	}
+	brightness = (127 - brightness) * weighting + 127;
+
+	return rgb_to_uint(brightness, brightness, brightness);
 }
 
 
 
-uint16_t sinewave(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine){
+uint16_t sinewave(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine, double weighting){
 	//Returns a (x,y) pixel's brightness for a sine wave
 	double brightness;
 	double x_prime;
@@ -162,11 +167,13 @@ uint16_t sinewave(int x, int y, int t, int wavelength, int speed, double angle, 
 	}else{
 		x_prime = (cosine*x + sine*y)+(speed*t);
 	}
-	brightness = 255*(0.5*sin(2*M_PI*(x_prime)/wavelength)+0.5);
+
+	brightness = weighting * (127*sin(2*M_PI*(x_prime)/wavelength)) + 127;
+
 	return rgb_to_uint(brightness,brightness,brightness);
 }
 
-uint16_t * draw_frame(int t, double angle, fb_config framebuffer, int wavelength, int speed, int waveform, int x_border, int y_border){
+uint16_t * draw_frame(int t, double angle, fb_config framebuffer, int wavelength, int speed, int waveform, int center_j, int center_i, int radius, double padding){
 	angle = ((int)(angle)%360 + 360)%360;
 	if(angle==0){
 		angle = ANGLE_0;
@@ -190,14 +197,32 @@ uint16_t * draw_frame(int t, double angle, fb_config framebuffer, int wavelength
 	uint16_t* write_location = array_start;
 	int i,j;
 	for(i=0;i<framebuffer.height;i++){ //for each row of pixels
-		for(j=0;j<framebuffer.width;j++){
+		for(j=0;j<framebuffer.width;j++){ //for each column of pixels
 			//set each pixel's brightness
-			if(i<=y_border||i>=(framebuffer.height-y_border)||j<=x_border||j>=(framebuffer.width-x_border)){
-				*write_location = rgb_to_uint(127,127,127);
-			}else if(waveform==SQUARE){
-				*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine);
-			}else if(waveform==SINE){
-				*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine);
+			if( radius == 0) { //if we have no radius and are doing fullscreen
+				if(waveform==SQUARE){
+					*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, 1);
+				}else if(waveform==SINE){
+					*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, 1);
+				}
+			} else { //if we have a radius and hence aren't doing full screen
+	                        int point_radius = (int) sqrt( ((j-center_j) * (j-center_j)) + ((i-center_i) * (i-center_i)) );
+				if( point_radius > radius + padding) { //if we are outside the circular mask
+					*write_location = rgb_to_uint(127,127,127);
+				}else if( point_radius <= radius) { //if we are inside the central radius
+					if(waveform==SQUARE) {
+						*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, 1);
+					}else if(waveform==SINE) {
+						*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, 1);
+					}
+				} else { //we must be in the padding region
+					double weight = (radius + padding - point_radius) / padding;
+					if(waveform==SQUARE) {
+						*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, weight);
+					}else if (waveform==SINE){
+						*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, weight);
+					}
+				}
 			}
 			write_location++;
 		}
@@ -210,7 +235,7 @@ uint16_t * draw_frame(int t, double angle, fb_config framebuffer, int wavelength
 
 
 
-int draw_grating(char * filename, double angle, double sf, double tf, int width, int height, int waveform, int percent_screen_filled, int verbose){
+int draw_grating(char * filename, double angle, double sf, double tf, int width, int height, int waveform, int percent_diameter, int percent_center_left, int percent_center_top, int percent_padding, int verbose){
 	fb_config fb0;
 	fb0.width = width;
 	fb0.height = height;
@@ -228,8 +253,10 @@ int draw_grating(char * filename, double angle, double sf, double tf, int width,
 		speed = 1;
 	}
 	double actual_tf = ((double)(speed*FPS)) / wavelength;
-	int x_border = fb0.width*(100-percent_screen_filled)/200;
-	int y_border = fb0.height*(100-percent_screen_filled)/200;
+	int radius = fb0.width*(percent_diameter) / 200;
+	int center_j = fb0.width * percent_center_left / 100;
+	int center_i = fb0.height * percent_center_top / 100;
+	double padding = radius * percent_padding / 100;
 	if(verbose&&actual_tf!=tf){
 		printf("Grating %s has a requested temporal frequency of %f,\n" 
 			"Actual temporal frequency will be %f (%f% requested)\n"
@@ -248,7 +275,7 @@ int draw_grating(char * filename, double angle, double sf, double tf, int width,
 	struct timespec time1, time2;
 	time1 = get_current_time();
 	for (t=0;t<header.frames_per_cycle;t++){
-		uint16_t* frame = draw_frame(t,angle,fb0,wavelength, speed, waveform, x_border, y_border);
+		uint16_t* frame = draw_frame(t,angle,fb0,wavelength, speed, waveform, center_j, center_i, radius, padding);
 		fwrite(frame,sizeof(uint16_t),fb0.height*fb0.width,file);
 		free(frame);
 		if(t==4){
@@ -513,13 +540,16 @@ int close_display(fb_config fb0){
 static PyObject* py_drawgrating(PyObject *self, PyObject *args) {
     char* filename;
     double angle, sf, tf;
-    int width, height, waveform, percent_screen_filled,verbose;
-    if (!PyArg_ParseTuple(args, "sdddiiiip", &filename, &angle,
-                          &sf, &tf, &width, &height, &waveform, &percent_screen_filled,
+    int width, height, waveform, percent_diameter, percent_center_left,
+	percent_center_top, percent_padding, verbose;
+    if (!PyArg_ParseTuple(args, "sdddiiiiiiip", &filename, &angle,
+                          &sf, &tf, &width, &height, &waveform,
+                          &percent_diameter, &percent_center_left,
+			  &percent_center_top, &percent_padding,
 			  &verbose)){
         return NULL;
     }
-    if(draw_grating(filename,angle,sf,tf,width,height,waveform,percent_screen_filled,verbose)){
+    if(draw_grating(filename,angle,sf,tf,width,height,waveform,percent_diameter,percent_center_left,percent_center_top,percent_padding,verbose)){
         return NULL;
     }
     Py_RETURN_NONE;
@@ -665,6 +695,8 @@ static PyMethodDef _rpigratings_methods[] = {
 	":Param tf: Temporal frequency in cycles per second\n"
     	":Param width: X component of the desired resolution\n"
 	":Param height: Y component of the desired resolution\n"
+	":Param waveform: SINE or SQUARE\n"
+	":Param percent_diameter: 0 for full screen or width of circlular mask\n"
 	":rtype None:\n\n"
 	"NOTE: the resolution of this file must match the resolution used\n"
 	"in init() calls that are used to display this file."

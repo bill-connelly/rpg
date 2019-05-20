@@ -31,8 +31,9 @@ import _rpigratings as rpigratings
 
 def build_grating(filename,spac_freq,temp_freq,
                   angle=0, resolution = (1280,720),
-                  waveform = SQUARE, percent_screen_filled = 100,
-                  verbose=True):
+                  waveform = SQUARE, percent_diameter = 0,
+                  percent_center_left = 0, percent_center_top = 0,
+                  percent_padding = 0, verbose=True):
     """
     Create a raw animation file of a drifting grating called filename.
     The grating's angle of propogation is measured counterclockwise
@@ -43,28 +44,44 @@ def build_grating(filename,spac_freq,temp_freq,
     The resolution paramater is formatted as (width, height) and
       must match the resolution of any Screen object used to display
       the grating.
-    Waveform can be 0 for a squarewave, or 1 for a sinewave. Macros 
+    Waveform can be 0 for a squarewave, or 1 for a sinewave. Constants 
       SQUARE and SINE are available for this purpose. Squarewaves are
       the default.
-    Percent_screen_filled determines how much of the screen should be
-      filled by the grating and how much by midgray.
+    Percent_diameter determines how much of the screen should be
+      filled by the grating and how much by midgray. Setting to 0 produces
+      full screen gratings.
+    Percent_center_left is the center of the grating from the left edge of
+      screen. Only has an effect if the grating is not full screen, i.e.
+      percent_diameter > 0. 50 produces a horizontally centered grating.
+    Percent_center_top is the center of the grating from the top edge of the
+      screen. Only has an effect if the grating is not full screen, i.e.
+      percent_diameter > 0. 50 produces a vertically centered grating.
+    Percent_padding is the % of the radius used to fade the grating towards
+      midgray. Setting to 0 produces a hard edged circular grating. Only has
+      an effect if percent_diameter > 0.
     For smooth propogation of the grating, the pixels-per-frame speed
       is truncated to the nearest interger; low resolutions combined with
       a low temporal frequency:spacial frequency ratio may result in incorrect
       speeds of propogation or even static, unmoving gratings. This also means
       that the temp_freq is approximate only.
     """
-    if percent_screen_filled>100 or percent_screen_filled<0:
-        raise ValueError("percent_screen_filled param set to invalid value of %d, must be in [0,100]"
-                         %percent_screen_filled)
+    if percent_diameter<0:
+        raise ValueError("percent_diameter param set to invalid value of %d, must be in [0,100]"
+                         %percent_diameter)
     rpigratings.draw_grating(filename,angle,spac_freq,temp_freq,
                      resolution[0],resolution[1],waveform,
-                     percent_screen_filled, verbose)
+                     percent_diameter, percent_center_left,
+                     percent_center_top, percent_padding, verbose)
 
 
 def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
 			   temp_freq, resolution = (1280,720), waveform = SQUARE,
-                           percent_screen_filled = 100, verbose = True):
+                           percent_diameter = 0, percent_center_left = 0,
+                           percent_center_top = 0, percent_padding = 0, verbose = True):
+
+	"""
+	Builds a list of gratings with the same properties but varied angles
+	"""
 
 	if len(list_of_angles) != len(set(list_of_angles)):
 		raise ValueError("list_of_angles must not contain duplicate elements")
@@ -73,7 +90,8 @@ def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
 	os.chdir(path_to_directory)
 	for angle in list_of_angles:
 		build_grating(str(angle), spac_freq, temp_freq, angle, resolution, waveform,
-                              percent_screen_filled, verbose)
+                              percent_diameter, percent_center_left, percent_center_top,
+                              percent_padding, verbose)
 	os.chdir(cwd)
 
 
@@ -169,7 +187,7 @@ class Screen:
         os.chdir(dir_containing_gratings)
         gratings = []
         for file in os.listdir():
-            gratings.append((self.load_grating(file),file))
+            gratings.append((self.load_grating(file),dir_containing_gratings + "/" + file))
         random.shuffle(gratings)
         record = []
         for grating in gratings:
@@ -204,7 +222,7 @@ class Screen:
         os.chdir(dir_containing_gratings)
         gratings = []
         for file in os.listdir():
-            gratings.append((self.load_grating(file),file))
+            gratings.append((self.load_grating(file),dir_containing_grating + "/" + file))
         #Create a copy of that list to hold gratings that
         #haven't been displayed yet
         #This is a shallow copy, so it shouldn't double up
@@ -215,7 +233,7 @@ class Screen:
         GPIO.add_event_detect(5, GPIO.RISING, bouncetime = 5)
         #Mainloop
         while True:
-            t.sleep(0.01)
+            t.sleep(0.001)
             if GPIO.event_detected(5):
                 #Get a random index in remaining_gratings
                 index = random.randint(0,len(remaining_gratings)-1)
@@ -225,8 +243,8 @@ class Screen:
                 self.display_color(GRAY)
                 #log the event to file
                 with open(path_of_log_file, "a") as file:
-                    file.write("Grating %s displayed starting at %d (unix time); fastest frame at %.2f FPS, slowest frame at %.2f FPS\n" 
-                                %(remaining_gratings[index][0],perf.start_time,perf.fastest_frame,perf.slowest_frame))
+                    file.write("Grating %s \t Displayed starting at (unix time) %d \t Fastest frame (FPS) %.2f \t slowest frame (FPS) %.2f \n" 
+                                %(remaining_gratings[index][1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
 
                 remaining_gratings.pop(index)
                 if len(remaining_gratings) == 0:

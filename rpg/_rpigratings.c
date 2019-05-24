@@ -330,6 +330,136 @@ uint16_t* load_grating(char* filename, fb_config fb0){
 	return frame_data;
 }
 
+
+uint16_t* load_raw(char* filename) {
+	int page_size = getpagesize();
+	int bytes_already_read = 0;
+	int read_size;
+
+	int fh = open(filename, O_RDWR);
+	if(fh == -1) {
+		perror("Failed to open file");
+		return NULL;
+	}
+	off_t len = lseek(fh, 0, SEEK_END);
+	if (len == -1) {
+		printf("Checking File Length Failed.\n");
+		return NULL;
+	}
+	uint16_t *frame_data = malloc(len);
+	while(bytes_already_read < len) {
+		read_size = 20000*page_size;
+		if(read_size + bytes_already_read >= len) {
+			read_size = len - bytes_already_read;
+		}
+		uint16_t *mmap_start = mmap(NULL, read_size, PROT_READ,
+					    MAP_PRIVATE, fh, bytes_already_read);
+		if(mmap_start == MAP_FAILED) {
+			perror("MMAP failed to read");
+			exit(1);
+		}
+		memcpy(frame_data+(bytes_already_read/2),mmap_start,read_size);
+		bytes_already_read += read_size;
+		munmap(mmap_start,read_size);
+	}
+	//uint16_t *frame_data = mmap(0, len, PROT_READ, MAP_PRIVATE, fh, 0);
+	close(fh);
+	return frame_data;
+}
+
+int convertraw(char* filename, char* new_filename) {
+
+	int fh = open(filename, O_RDWR);
+	if (fh == -1) {
+		perror("Failed to open file");
+		return NULL;
+	}
+
+	FILE * new_file = fopen(new_filename, "wb");
+	if (new_file == NULL) {
+		printf("File creation failed.\n");
+		return NULL;
+	}
+
+	off_t len = lseek(fh, 0, SEEK_END);
+	if (len == -1) {
+		printf("Checking File Length Failed.\n");
+		exit(1);
+	}
+	char *buffer = mmap(0, len, PROT_READ, MAP_PRIVATE, fh, 0);
+
+	if (buffer == MAP_FAILED){
+		perror("MMAP failed");
+		exit(1);
+	}
+	int i = 0;
+	char r, g, b;
+	uint16_t new_byte;
+	while (i < len) {
+		r = buffer[i];
+		g = buffer[i++];
+		b = buffer[i++];
+		i++;
+		new_byte = rgb_to_uint(r,g,b);
+		fwrite(&new_byte,sizeof(uint16_t), 1, new_file);
+	}
+	munmap(buffer, len);
+	fclose(new_file);
+	close(fh);
+	return 0;
+}
+
+double* display_raw(uint16_t *frame_data, fb_config fb0) {
+	uint16_t *write_loc;
+	int t, buffer, pixel, frame;
+	double time;
+	write_loc = fb0.map + fb0.size/2;
+	double *fastest_frame = malloc(2*sizeof(double));
+	double *slowest_frame = fastest_frame+1;
+	*slowest_frame = 0;
+	*fastest_frame = 1000000;
+	struct timespec frame_start = get_current_time();
+	struct timespec frame_end;
+
+	int n_frames = 200;
+	int raw_FPS = 25;
+	for (t = 0; t < n_frames; t++) {
+		frame = t;
+		buffer = t%2;
+		for(pixel = 0; pixel < fb0.size/2; pixel++) {
+			*write_loc = frame_data[(frame*fb0.size/2)+pixel];
+			write_loc++;
+		}
+
+		frame_end = get_current_time();
+		time = cmp_times(frame_start,frame_end);
+		if(time+ADJUSTMENT<(CLOCKS_PER_SEC/raw_FPS)) {
+			usleep((CLOCKS_PER_SEC/raw_FPS)-time-ADJUSTMENT);
+		} else {
+			printf("FRAME TO SLOW. ABORTING.../n");
+			return NULL;
+		}
+		frame_end = get_current_time();
+		time = cmp_times(frame_start,frame_end);
+		if(time>(*slowest_frame) && t != 0) {
+			*slowest_frame = (double)(time);
+		}
+		if(time<(*fastest_frame)){
+			*fastest_frame = (double)(time);
+		}
+		flip_buffer(buffer, fb0);
+		frame_start = get_current_time();
+		if(buffer) {
+			write_loc = fb0.map + fb0.size/2;
+		} else {
+			write_loc = fb0.map;
+		}
+	}
+	*fastest_frame = 1000000/(*fastest_frame);
+	*slowest_frame = 1000000/(*slowest_frame);
+	return fastest_frame;
+}
+
 double* display_grating(uint16_t* frame_data, fb_config fb0){
 	fileheader_t* header = frame_data;
 	frame_data += sizeof(fileheader_t)/sizeof(uint16_t);
@@ -384,6 +514,11 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 
 int unload_grating(uint16_t* frame_data){
 	free(frame_data);
+	return 0;
+}
+
+int unload_raw(uint16_t* raw_data) {
+	free(raw_data);
 	return 0;
 }
 
@@ -583,7 +718,6 @@ static PyObject* py_displaycolor(PyObject* self, PyObject* args){
 }
 
 
-
 static PyObject* py_loadgrating(PyObject* self, PyObject* args){
     PyObject* fb0_capsule;
     char* filename;
@@ -598,6 +732,17 @@ static PyObject* py_loadgrating(PyObject* self, PyObject* args){
     return grating_capsule;
 }
 
+static PyObject* py_loadraw(PyObject* self, PyObject* args){
+	char* filename;
+	if (!PyArg_ParseTuple(args, "s", &filename)) {
+		return NULL;
+	}
+	uint16_t* raw_data = load_raw(filename);
+	PyObject* raw_capsule = PyCapsule_New(raw_data, "raw_data", NULL);
+	Py_INCREF(raw_capsule);
+	return raw_capsule;
+}
+
 static PyObject* py_unloadgrating(PyObject* self, PyObject* args){
     PyObject* grating_capsule;
     void* grating_pointer;
@@ -610,10 +755,22 @@ static PyObject* py_unloadgrating(PyObject* self, PyObject* args){
     Py_RETURN_NONE;
 }
 
+static PyObject* py_unloadraw(PyObject* self, PyObject* args) {
+	PyObject* raw_capsule;
+	void* raw_pointer;
+	if (!PyArg_ParseTuple(args, "O", &raw_capsule)) {
+		return NULL;
+	}
+	raw_pointer = PyCapsule_GetPointer(raw_capsule, "raw_data");
+	unload_raw(raw_pointer);
+	Py_DECREF(raw_capsule);
+	Py_RETURN_NONE;
+}
+
 static PyObject* py_displaygrating(PyObject* self, PyObject* args){
     PyObject* fb0_capsule;
     PyObject* grating_capsule;
-        if (!PyArg_ParseTuple(args, "OO", &fb0_capsule,&grating_capsule)) {
+    if (!PyArg_ParseTuple(args, "OO", &fb0_capsule,&grating_capsule)) {
         return NULL;
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
@@ -625,7 +782,20 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
     return return_tuple;
 }
 
-
+static PyObject* py_displayraw(PyObject* self, PyObject* args){
+	PyObject* fb0_capsule;
+	PyObject* raw_capsule;
+	if (!PyArg_ParseTuple(args, "OO", &fb0_capsule, &raw_capsule)) {
+		return NULL;
+	}
+	fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule, "framebuffer");
+	double* raw_data = PyCapsule_GetPointer(raw_capsule, "raw_data");
+	int start_time = time(NULL);
+	double* raw_info = display_raw(raw_data, *fb0_pointer);
+	PyObject* return_tuple = Py_BuildValue("(ddi)", *raw_info, *(raw_info+1), start_time);
+	free(raw_info);
+	return return_tuple;
+}
 
 static PyObject* py_closedisplay(PyObject* self, PyObject* args){
     PyObject* fb0_capsule;
@@ -642,6 +812,16 @@ static PyObject* py_closedisplay(PyObject* self, PyObject* args){
 }
 
 
+static PyObject* py_convertraw(PyObject* self, PyObject* args){
+	char *filename, *new_filename;
+	if (!PyArg_ParseTuple(args, "ss", &filename, &new_filename)) {
+		return NULL;
+	}
+	if(convertraw(filename, new_filename)) {
+		return NULL;
+	}
+	Py_RETURN_NONE;
+}
 
 
 static PyMethodDef _rpigratings_methods[] = { 
@@ -684,7 +864,11 @@ static PyMethodDef _rpigratings_methods[] = {
 	":Param fb0: a framebuffer object created from an init() call\n"
 	":Param data: a raw data object created from a load_grating() call\n"
 	":rtype None:"
-    },  
+    },
+{
+	"display_raw", py_displayraw, METH_VARARGS,
+	":rtype None:"
+},  
     {   
         "draw_grating", py_drawgrating, METH_VARARGS,
         "Creates a raw animation file of a drifting grating.\n"
@@ -709,6 +893,10 @@ static PyMethodDef _rpigratings_methods[] = {
 	":Param filename: (string) the raw data file to be loaded\,\n"
 	"      typically created with a draw_grating call.\n"
 	":rtype grating_data capsule: The raw data object."
+    },
+    {
+	"load_raw", py_loadraw, METH_VARARGS,
+	":rtype raw_data capsule"
     },  
     {   
         "unload_grating", py_unloadgrating, METH_VARARGS,
@@ -716,12 +904,21 @@ static PyMethodDef _rpigratings_methods[] = {
 	":Param data: a grating_data object returned from load_grating()\n"
 	":rtype None:"
     },  
-    {   
+   {
+	"unload_raw", py_unloadraw, METH_VARARGS,
+	":rtype None:"
+   }, 
+   {   
         "close_display", py_closedisplay, METH_VARARGS,
         "Destroy/uninitialise a framebuffer object.\n"
 	":Param fb0: an initialised framebuffer object\n"
 	":rtype None:"
     },  
+    {   
+	"convertraw", py_convertraw, METH_VARARGS,
+	"fillertext\n"
+	":type None:"
+    },
     {NULL, NULL, 0, NULL}
 };
 

@@ -94,6 +94,8 @@ def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
                               percent_padding, verbose)
 	os.chdir(cwd)
 
+def convert_raw(file, new_file):
+	rpigratings.convertraw(file, new_file)
 
 class Screen:
     def __init__(self, resolution=(1280,720)):
@@ -135,6 +137,13 @@ class Screen:
                 self.close()
                 raise
 
+    def load_raw(self, filename):
+        try:
+            return Raw(self, filename)
+        except:
+            self.close()
+            raise
+
     def display_grating(self, grating):
         """
         Display the currently loaded grating (grating files are created with
@@ -154,7 +163,15 @@ class Screen:
         except:
                 self.close()
                 raise
-            
+
+    def display_raw(self, raw):
+        try:
+            rawtuple = rpigratings.display_raw(self.capsule, raw.capsule)
+            return GratPerfRec(*rawtuple)
+        except:
+            self.close()
+            raise
+
     def display_color(self,color):
         """
         Fill the screen with a solid color until something else is
@@ -201,6 +218,22 @@ class Screen:
             file.writelines(record)
 
         os.chdir(cwd)
+
+    def display_raw_on_pulse(self, filename, path_of_log_file="rpglog.txt"):
+        self.display_color(GRAY)
+        raw = self.load_raw(filename)
+        GPIO.setup(5, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
+        GPIO.add_event_detect(5, GPIO.RISING, bouncetime = 5)
+
+        while True:
+            t.sleep(0.001)
+            if GPIO.event_detected(5):
+                perf = self.display_raw(raw)
+                self.display_color(GRAY)
+                with open(path_of_log_file, "a") as file:
+                    file.write("Raw: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
+                                %(filename,perf.start_time,perf.fastest_frame,perf.slowest_frame))
+
 
     def display_rand_grating_on_pulse(self, dir_containing_gratings, path_of_log_file="rpglog.txt"):
         ##                                                ##
@@ -273,3 +306,12 @@ class Grating:
 	def __del__(self):
 		rpigratings.unload_grating(self.capsule)
 
+
+class Raw:
+	def __init__(self, master, filename):
+		if type(master).__name__ != "Screen":
+			raise ValueError("master must be a Screen instance")
+		self.master = master
+		self.capsule = rpigratings.load_raw(filename)
+	def __del__(self):
+		rpigratings.unload_raw(self.capsule)

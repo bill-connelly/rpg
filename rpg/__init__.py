@@ -94,8 +94,8 @@ def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
                               percent_padding, verbose)
 	os.chdir(cwd)
 
-def convert_raw(file, new_file):
-	rpigratings.convertraw(file, new_file)
+def convert_raw(file, new_file, n_frames, width, height, fps):
+	rpigratings.convertraw(file, new_file, n_frames, width, height, fps)
 
 class Screen:
     def __init__(self, resolution=(1280,720)):

@@ -34,13 +34,22 @@ typedef struct {
 	unsigned int orig_width;  //These three values store
 	unsigned int orig_height; //the screen settings so they
 	unsigned int orig_depth;  //can be reset at program termination.
-	} fb_config;
+} fb_config;
 
 typedef struct {
 	uint16_t frames_per_cycle;
 	uint16_t spacial_frequency;
 	uint16_t temporal_frequency;
-	}fileheader_t;
+}fileheader_t;
+
+typedef struct {
+	// Unecessarily large variable types so that all
+	// variables are 4 bytes long
+	long int n_frames;
+	long int width;
+	long int height;
+	float fps;
+} fileheader_raw;
 
 uint16_t rgb_to_uint(int red, int green, int blue){
 	/*Convert an rgb value to a 16bit, RGB565
@@ -346,6 +355,7 @@ uint16_t* load_raw(char* filename) {
 		printf("Checking File Length Failed.\n");
 		return NULL;
 	}
+
 	uint16_t *frame_data = malloc(len);
 	while(bytes_already_read < len) {
 		read_size = 20000*page_size;
@@ -367,7 +377,7 @@ uint16_t* load_raw(char* filename) {
 	return frame_data;
 }
 
-int convertraw(char* filename, char* new_filename) {
+int convertraw(char* filename, char* new_filename, int n_frames, int width, int height, float fps) {
 
 	int fh = open(filename, O_RDWR);
 	if (fh == -1) {
@@ -377,9 +387,16 @@ int convertraw(char* filename, char* new_filename) {
 
 	FILE * new_file = fopen(new_filename, "wb");
 	if (new_file == NULL) {
-		printf("File creation failed.\n");
+		perror("Failed to open new file");
 		return NULL;
 	}
+
+	fileheader_raw header;
+	header.n_frames = n_frames;
+	header.width = width;
+	header.height = height;
+	header.fps = fps;
+	fwrite(&header, sizeof(fileheader_raw),1,new_file);
 
 	off_t len = lseek(fh, 0, SEEK_END);
 	if (len == -1) {
@@ -410,6 +427,9 @@ int convertraw(char* filename, char* new_filename) {
 }
 
 double* display_raw(uint16_t *frame_data, fb_config fb0) {
+	fileheader_raw* header = frame_data;
+	frame_data += sizeof(fileheader_raw)/sizeof(float);
+
 	uint16_t *write_loc;
 	int t, buffer, pixel, frame;
 	double time;
@@ -421,8 +441,8 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 	struct timespec frame_start = get_current_time();
 	struct timespec frame_end;
 
-	int n_frames = 200;
-	int raw_FPS = 25;
+	int n_frames = header -> n_frames;
+	int raw_FPS = header -> fps;
 	for (t = 0; t < n_frames; t++) {
 		frame = t;
 		buffer = t%2;
@@ -684,7 +704,9 @@ static PyObject* py_drawgrating(PyObject *self, PyObject *args) {
 			  &verbose)){
         return NULL;
     }
-    if(draw_grating(filename,angle,sf,tf,width,height,waveform,percent_diameter,percent_center_left,percent_center_top,percent_padding,verbose)){
+    if(draw_grating(filename,angle,sf,tf,width,height,waveform,
+			percent_diameter,percent_center_left,
+			percent_center_top,percent_padding,verbose)){
         return NULL;
     }
     Py_RETURN_NONE;
@@ -814,10 +836,13 @@ static PyObject* py_closedisplay(PyObject* self, PyObject* args){
 
 static PyObject* py_convertraw(PyObject* self, PyObject* args){
 	char *filename, *new_filename;
-	if (!PyArg_ParseTuple(args, "ss", &filename, &new_filename)) {
+	int n_frames, width, height;
+	float fps;
+	if (!PyArg_ParseTuple(args, "ssiiif", &filename, &new_filename,
+				&n_frames, &width, &height, &fps)) {
 		return NULL;
 	}
-	if(convertraw(filename, new_filename)) {
+	if(convertraw(filename, new_filename, n_frames, width, height, fps)) {
 		return NULL;
 	}
 	Py_RETURN_NONE;

@@ -366,13 +366,12 @@ uint16_t* load_raw(char* filename) {
 					    MAP_PRIVATE, fh, bytes_already_read);
 		if(mmap_start == MAP_FAILED) {
 			perror("MMAP failed to read");
-			exit(1);
+			return NULL;
 		}
 		memcpy(frame_data+(bytes_already_read/2),mmap_start,read_size);
 		bytes_already_read += read_size;
 		munmap(mmap_start,read_size);
 	}
-	//uint16_t *frame_data = mmap(0, len, PROT_READ, MAP_PRIVATE, fh, 0);
 	close(fh);
 	return frame_data;
 }
@@ -401,13 +400,13 @@ int convertraw(char* filename, char* new_filename, int n_frames, int width, int 
 	off_t len = lseek(fh, 0, SEEK_END);
 	if (len == -1) {
 		printf("Checking File Length Failed.\n");
-		exit(1);
+		return NULL;
 	}
 	char *buffer = mmap(0, len, PROT_READ, MAP_PRIVATE, fh, 0);
 
 	if (buffer == MAP_FAILED){
 		perror("MMAP failed");
-		exit(1);
+		return NULL;
 	}
 	int i = 0;
 	char r, g, b;
@@ -442,7 +441,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 	struct timespec frame_end;
 
 	int n_frames = header -> n_frames;
-	int raw_FPS = header -> fps;
+	float raw_FPS = header -> fps;
 	for (t = 0; t < n_frames; t++) {
 		frame = t;
 		buffer = t%2;
@@ -748,8 +747,11 @@ static PyObject* py_loadgrating(PyObject* self, PyObject* args){
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
     uint16_t* grating_data = load_grating(filename,*fb0_pointer);
-    PyObject* grating_capsule = PyCapsule_New(grating_data,
-                                          "grating_data",NULL);
+    if (grating_data == NULL) {
+        PyErr_SetString(PyExc_FileNotFoundError, "You probably mistyped the file name.	Though stranger things may have happened");
+ 	return NULL;
+    }
+    PyObject* grating_capsule = PyCapsule_New(grating_data, "grating_data",NULL);
     Py_INCREF(grating_capsule);
     return grating_capsule;
 }
@@ -760,6 +762,10 @@ static PyObject* py_loadraw(PyObject* self, PyObject* args){
 		return NULL;
 	}
 	uint16_t* raw_data = load_raw(filename);
+	if (raw_data == NULL) {
+		PyErr_SetString(PyExc_FileNotFoundError, "You probably mistyped the file name.	Though stranger things may have happened");
+		return NULL;
+	}
 	PyObject* raw_capsule = PyCapsule_New(raw_data, "raw_data", NULL);
 	Py_INCREF(raw_capsule);
 	return raw_capsule;

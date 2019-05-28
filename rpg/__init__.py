@@ -14,12 +14,17 @@ performance.
 
 """
 import time as t
-import os, sys,random
+import os, sys, random
 import RPi.GPIO as GPIO
-GPIO.setmode(GPIO.BOARD)
 from collections import namedtuple
+from select import select
 
 GratPerfRec = namedtuple("GratingPerformanceRecord",["fastest_frame","slowest_frame","start_time"])
+
+#Users should edit the variable TRIGGER_PIN to the number of the pin they have conntected
+#a 3.3V signal to.
+TRIGGER_PIN = 5
+
 
 GRAY = (127,127,127)
 BLACK = (0,0,0)
@@ -68,6 +73,8 @@ def build_grating(filename,spac_freq,temp_freq,
     if percent_diameter<0:
         raise ValueError("percent_diameter param set to invalid value of %d, must be in [0,100]"
                          %percent_diameter)
+
+    filename = os.path.expanduser(filename)
     rpigratings.draw_grating(filename,angle,spac_freq,temp_freq,
                      resolution[0],resolution[1],waveform,
                      percent_diameter, percent_center_left,
@@ -85,8 +92,11 @@ def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
 
 	if len(list_of_angles) != len(set(list_of_angles)):
 		raise ValueError("list_of_angles must not contain duplicate elements")
+
+
+	path_to_directory = os.path.expanduser(path_to_directory)
 	cwd = os.getcwd()
-	os.mkdir(path_to_directory)
+	os.makedirs(path_to_directory)
 	os.chdir(path_to_directory)
 	for angle in list_of_angles:
 		build_grating(str(angle), spac_freq, temp_freq, angle, resolution, waveform,
@@ -94,8 +104,12 @@ def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
                               percent_padding, verbose)
 	os.chdir(cwd)
 
-def convert_raw(file, new_file, n_frames, width, height, fps):
-	rpigratings.convertraw(file, new_file, n_frames, width, height, fps)
+def convert_raw(filename, new_filename, n_frames, width, height, fps):
+	filename = os.path.expanduser(filename)
+	new_filename = os.path.expanduser(new_filename)
+
+	rpigratings.convertraw(filename, new_filename, n_frames, width, height, fps)
+
 
 class Screen:
     def __init__(self, resolution=(1280,720)):
@@ -131,6 +145,7 @@ class Screen:
         in this way, display_grating() can be called to display the loaded file
         to the screen.
         """
+        filename = os.path.expanduser(filename)
         try:
                 return Grating(self,filename)
         except:
@@ -138,6 +153,7 @@ class Screen:
                 raise
 
     def load_raw(self, filename):
+        filename = os.path.expanduser(filename)
         try:
             return Raw(self, filename)
         except:
@@ -199,6 +215,8 @@ class Screen:
         highest level directory. Gratings are seperated by one second of midgray.
         """
 
+        dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
+        path_of_log_file = os.path.expanduser(path_of_log_file)
         cwd = os.getcwd()
 
         os.chdir(dir_containing_gratings)
@@ -220,11 +238,17 @@ class Screen:
         os.chdir(cwd)
 
     def display_raw_on_pulse(self, filename, path_of_log_file="rpglog.txt"):
+
+        filename = os.path.expanduser(filename)
+        path_of_log_file = os.path.expanduser(path_of_log_file)
         self.display_color(GRAY)
         raw = self.load_raw(filename)
-        GPIO.setup(5, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        GPIO.add_event_detect(5, GPIO.RISING, bouncetime = 5)
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(TRIGGER_PIN, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
+        GPIO.add_event_detect(TRIGGER_PIN, GPIO.RISING, bouncetime = 5)
 
+        print("Waiting for pulse on pin " + str(TRIGGER_PIN) + ".")
+        print("Press Enter to quit waiting...")
         while True:
             t.sleep(0.001)
             if GPIO.event_detected(5):
@@ -233,13 +257,14 @@ class Screen:
                 with open(path_of_log_file, "a") as file:
                     file.write("Raw: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
                                 %(filename,perf.start_time,perf.fastest_frame,perf.slowest_frame))
+            if select([sys.stdin],[],[],0)[0]: #if user presses enter
+                break
+
+        GPIO.cleanup()
+        print("Waiting for pulses ended")
 
 
     def display_rand_grating_on_pulse(self, dir_containing_gratings, path_of_log_file="rpglog.txt"):
-        ##                                                ##
-        ##THIS IS THE FUNCTION THAT RESPONDS TO GPIO INPUT##
-        ##                                                ##
-
         """
         Upon receiving a 3.3V pulse (NOT 5V!!!), choose a grating at
         random from dir_containing_gratings and display it. Each
@@ -251,7 +276,8 @@ class Screen:
  
         self.display_color(GRAY)
         #Load all the files in dir into a list along with their names
-
+        dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
+        path_of_log_file = os.path.expanduser(path_of_log_file)
         os.chdir(dir_containing_gratings)
         gratings = []
         for file in os.listdir():
@@ -262,9 +288,12 @@ class Screen:
         #on memory space
         remaining_gratings = gratings.copy()
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
-        GPIO.setup(5, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        GPIO.add_event_detect(5, GPIO.RISING, bouncetime = 5)
-        #Mainloop
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(TRIGGER_PIN, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
+        GPIO.add_event_detect(TRIGGER_PIN, GPIO.RISING, bouncetime = 5)
+
+        print("Waiting for pulse on pin " + str(TRIGGER_PIN) + ".")
+        print("Press Enter to quit waiting...")
         while True:
             t.sleep(0.001)
             if GPIO.event_detected(5):
@@ -278,11 +307,15 @@ class Screen:
                 with open(path_of_log_file, "a") as file:
                     file.write("Grating: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
                                 %(remaining_gratings[index][1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
-
                 remaining_gratings.pop(index)
                 if len(remaining_gratings) == 0:
                     remaining_gratings = gratings.copy()
 
+            if select([sys.stdin],[],[],0)[0]: #if user presses enter
+                break
+
+        GPIO.cleanup()
+        print("Waiting for pulses ended")
 
     def close(self):
         """
@@ -290,8 +323,10 @@ class Screen:
         screen settings.
         :rtype None:
         """
+        print("Screen object has been closed. You will need to make a new one")
         rpigratings.close_display(self.capsule)
         del self
+
     def __del__(self):
         self.close()
 

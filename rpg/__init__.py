@@ -146,19 +146,11 @@ class Screen:
         to the screen.
         """
         filename = os.path.expanduser(filename)
-        try:
-                return Grating(self,filename)
-        except:
-                self.close()
-                raise
+        return Grating(self,filename)
 
     def load_raw(self, filename):
         filename = os.path.expanduser(filename)
-        try:
-            return Raw(self, filename)
-        except:
-            self.close()
-            raise
+        return Raw(self, filename)
 
     def display_grating(self, grating):
         """
@@ -173,20 +165,12 @@ class Screen:
         of the time of the slowest frame, and the time the
         grating began to play (in Unix Time).
         """
-        try:
-                rawtuple = rpigratings.display_grating(self.capsule, grating.capsule)
-                return GratPerfRec(*rawtuple)
-        except:
-                self.close()
-                raise
+        rawtuple = rpigratings.display_grating(self.capsule, grating.capsule)
+        return GratPerfRec(*rawtuple)
 
     def display_raw(self, raw):
-        try:
-            rawtuple = rpigratings.display_raw(self.capsule, raw.capsule)
-            return GratPerfRec(*rawtuple)
-        except:
-            self.close()
-            raise
+        rawtuple = rpigratings.display_raw(self.capsule, raw.capsule)
+        return GratPerfRec(*rawtuple)
 
     def display_color(self,color):
         """
@@ -202,10 +186,7 @@ class Screen:
                 self.close()
                 raise ValueError("Color must be a tuple of RBG values"
                                  + "each between 0 and 255.")
-        try: rpigratings.display_color(self.capsule,color[0],color[1],color[2])
-        except:
-            self.close()
-            raise
+        rpigratings.display_color(self.capsule,color[0],color[1],color[2])
 
     def display_gratings_randomly(self, dir_containing_gratings, path_of_log_file="rpglog.txt"):
         """

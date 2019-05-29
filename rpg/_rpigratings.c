@@ -645,10 +645,6 @@ fb_config init(int width, int height){
 		printf("Terminating...\n");
 		exit(1);
 	}
-	if(system("setterm -cursor off")){
-		perror("System Call error");
-		exit(1);
-	}
 	fb0.framebuffer = open("/dev/fb0",O_RDWR);
 	if (fb0.framebuffer == -1){
 		perror("Framebuffer open failed");
@@ -674,10 +670,6 @@ int close_display(fb_config fb0){
 		fb0.orig_width, fb0.orig_height, fb0.orig_width, fb0.orig_height,
 		fb0.orig_depth);
 	if(system(fbset_str)){
-		perror("System call error");
-		exit(1);
-	}
-	if(system("setterm -cursor on")){
 		perror("System call error");
 		exit(1);
 	}

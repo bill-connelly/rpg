@@ -34,6 +34,7 @@ typedef struct {
 	unsigned int orig_width;  //These three values store
 	unsigned int orig_height; //the screen settings so they
 	unsigned int orig_depth;  //can be reset at program termination.
+	int error;
 } fb_config;
 
 typedef struct {
@@ -75,11 +76,16 @@ int gcd(int a, int b){
 	return gcd(a,b-a);
 }
 
-struct timespec get_current_time(void){
+struct timespec get_current_time(int* status){
+	/*The status argument is passed so we can
+	write an error code to it in the event of an
+	OS failure*/
 	struct timespec t;
 	if(clock_gettime(CLOCK_REALTIME,&t)){
-		perror("Error from clock_gettime");
-		exit(1);
+		*status = -1;
+		PyErr_SetString(PyExc_OSError,"Failed realtime clock_gettime call");
+	}else{
+		*status = 0;
 	}
 	return t;
 }
@@ -182,7 +188,7 @@ uint16_t sinewave(int x, int y, int t, int wavelength, int speed, double angle, 
 	return rgb_to_uint(brightness,brightness,brightness);
 }
 
-uint16_t * draw_frame(int t, double angle, fb_config framebuffer, int wavelength, int speed, int waveform, int center_j, int center_i, int radius, double padding){
+uint16_t * build_frame(int t, double angle, fb_config framebuffer, int wavelength, int speed, int waveform, int center_j, int center_i, int radius, double padding){
 	angle = ((int)(angle)%360 + 360)%360;
 	if(angle==0){
 		angle = ANGLE_0;
@@ -244,7 +250,7 @@ uint16_t * draw_frame(int t, double angle, fb_config framebuffer, int wavelength
 
 
 
-int draw_grating(char * filename, double angle, double sf, double tf, int width, int height, int waveform, int percent_diameter, int percent_center_left, int percent_center_top, int percent_padding, int verbose){
+int build_grating(char * filename, double angle, double sf, double tf, int width, int height, int waveform, int percent_diameter, int percent_center_left, int percent_center_top, int percent_padding, int verbose){
 	fb_config fb0;
 	fb0.width = width;
 	fb0.height = height;
@@ -280,15 +286,21 @@ int draw_grating(char * filename, double angle, double sf, double tf, int width,
 	header.spacial_frequency = (uint16_t)(sf);
 	header.temporal_frequency = (uint16_t)(tf);
 	fwrite(&header,sizeof(fileheader_t),1,file);
-	int t;
+	int t, clock_status;
 	struct timespec time1, time2;
-	time1 = get_current_time();
+	time1 = get_current_time(&clock_status);
+	if(!clock_status){
+			return -1;
+	}
 	for (t=0;t<header.frames_per_cycle;t++){
-		uint16_t* frame = draw_frame(t,angle,fb0,wavelength, speed, waveform, center_j, center_i, radius, padding);
+		uint16_t* frame = build_frame(t,angle,fb0,wavelength, speed, waveform, center_j, center_i, radius, padding);
 		fwrite(frame,sizeof(uint16_t),fb0.height*fb0.width,file);
 		free(frame);
 		if(t==4){
-			time2 = get_current_time();
+			time2 = get_current_time(&clock_status);
+			if(!clock_status){
+				return -1;
+			}
 			printf("Expected time to completion: %d seconds\n",header.frames_per_cycle*cmp_times(time1,time2)/1000000/5);
 		}
 	}
@@ -381,13 +393,13 @@ int convertraw(char* filename, char* new_filename, int n_frames, int width, int 
 	int fh = open(filename, O_RDWR);
 	if (fh == -1) {
 		perror("Failed to open file");
-		return NULL;
+		return 1;
 	}
 
 	FILE * new_file = fopen(new_filename, "wb");
 	if (new_file == NULL) {
 		perror("Failed to open new file");
-		return NULL;
+		return 1;
 	}
 
 	fileheader_raw header;
@@ -400,13 +412,13 @@ int convertraw(char* filename, char* new_filename, int n_frames, int width, int 
 	off_t len = lseek(fh, 0, SEEK_END);
 	if (len == -1) {
 		printf("Checking File Length Failed.\n");
-		return NULL;
+		return 1;
 	}
 	char *buffer = mmap(0, len, PROT_READ, MAP_PRIVATE, fh, 0);
 
 	if (buffer == MAP_FAILED){
 		perror("MMAP failed");
-		return NULL;
+		return 1;
 	}
 	int i = 0;
 	char r, g, b;
@@ -430,16 +442,18 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 	frame_data += sizeof(fileheader_raw)/sizeof(float);
 
 	uint16_t *write_loc;
-	int t, buffer, pixel, frame;
+	int t, buffer, pixel, frame, clock_status;
 	double time;
 	write_loc = fb0.map + fb0.size/2;
 	double *fastest_frame = malloc(2*sizeof(double));
 	double *slowest_frame = fastest_frame+1;
 	*slowest_frame = 0;
 	*fastest_frame = 1000000;
-	struct timespec frame_start = get_current_time();
+	struct timespec frame_start = get_current_time(&clock_status);
 	struct timespec frame_end;
-
+	if(!clock_status){
+		return NULL;
+	}
 	int n_frames = header -> n_frames;
 	float raw_FPS = header -> fps;
 	for (t = 0; t < n_frames; t++) {
@@ -450,15 +464,21 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 			write_loc++;
 		}
 
-		frame_end = get_current_time();
+		frame_end = get_current_time(&clock_status);
 		time = cmp_times(frame_start,frame_end);
+		if(!clock_status){
+			return NULL;
+		}
 		if(time+ADJUSTMENT<(CLOCKS_PER_SEC/raw_FPS)) {
 			usleep((CLOCKS_PER_SEC/raw_FPS)-time-ADJUSTMENT);
 		} else {
-			printf("FRAME TO SLOW. ABORTING.../n");
+			PyErr_SetString(PyExc_TimeoutError, "A frame was too slow");
 			return NULL;
 		}
-		frame_end = get_current_time();
+		frame_end = get_current_time(&clock_status);
+		if(!clock_status){
+			return NULL;
+		}
 		time = cmp_times(frame_start,frame_end);
 		if(time>(*slowest_frame) && t != 0) {
 			*slowest_frame = (double)(time);
@@ -467,7 +487,10 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 			*fastest_frame = (double)(time);
 		}
 		flip_buffer(buffer, fb0);
-		frame_start = get_current_time();
+		frame_start = get_current_time(&clock_status);
+		if(!clock_status){
+			return NULL;
+		}
 		if(buffer) {
 			write_loc = fb0.map + fb0.size/2;
 		} else {
@@ -483,7 +506,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 	fileheader_t* header = frame_data;
 	frame_data += sizeof(fileheader_t)/sizeof(uint16_t);
 	uint16_t *write_loc;
-	int t,buffer,pixel,frame;
+	int t,buffer,pixel,frame, clock_status;
 	double time;
 	//We want to write to the second buffer
 	write_loc = fb0.map + fb0.size/2;
@@ -491,7 +514,10 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 	double* slowest_frame = fastest_frame+1;
 	*slowest_frame  = 0;
 	*fastest_frame = 1000000;
-	struct timespec frame_start = get_current_time();
+	struct timespec frame_start = get_current_time(&clock_status);
+	if(!clock_status){
+		return NULL;
+	}
 	struct timespec frame_end;
 	for (t=0;t<FRAMES;t++){
 	//Play each frame by copying data to the memory-mapped area
@@ -502,15 +528,21 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 			write_loc++;
 		}
 
-		frame_end  = get_current_time();
+		frame_end  = get_current_time(&clock_status);
+		if(!clock_status){
+			return NULL;
+		}
 		time = cmp_times(frame_start,frame_end);
 		if(time+ADJUSTMENT<(CLOCKS_PER_SEC/FPS)){
 			usleep((CLOCKS_PER_SEC/FPS)-time-ADJUSTMENT);
 		}else{
-			printf("Frame was too slow, aborting...");
+			PyErr_SetString(PyExc_TimeoutError,"Frame was too slow");
 			return NULL;
 		}
-		frame_end = get_current_time();
+		frame_end = get_current_time(&clock_status);
+		if(!clock_status){
+			return NULL;
+		}
 		time = cmp_times(frame_start,frame_end);
 		if(time>(*slowest_frame) && t!=0){
 			*slowest_frame = (double)(time);
@@ -519,7 +551,10 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 			*fastest_frame = (double)(time);
 		}
 		flip_buffer(buffer,fb0);
-		frame_start = get_current_time();
+		frame_start = get_current_time(&clock_status);
+		if(!clock_status){
+			return NULL;
+		}
 		if(buffer){
 			write_loc = fb0.map + fb0.size/2;
 		}else{
@@ -560,8 +595,8 @@ int display_color(fb_config fb0,int buffer, uint16_t color){
 int is_current_resolution(int xres, int yres){
 	int fd = open("/dev/vcio",0);
 	if(fd == -1){
-		perror("From open() call on /dev/vcio device");
-		exit(1);
+		PyErr_SetString(PyExc_OSError,"Could not open /dev/vcio device");
+		return -1;
 	}
 	volatile uint32_t property[32] __attribute__((aligned(16))) = 
 	{
@@ -576,8 +611,8 @@ int is_current_resolution(int xres, int yres){
 	};
 	property[0] = 8*sizeof(property[0]);
 	if(ioctl(fd, _IOWR(100,0,char*), property) == -1){
-		perror("Error from call to ioctl\n");
-		exit(1);
+		PyErr_SetString(PyExc_OSError,"IOCTL call failed when attempting to check resolution");
+		return -1;
 	}
 	return ((property[5] == xres)&&(property[6]==yres));
 }
@@ -613,7 +648,7 @@ fb_config init(int width, int height){
 	if(ioctl(fd, _IOWR(100, 0, char *), property) == -1){
 		perror("Error from call to ioctl\n");
 		exit(1);
-		}
+	}
 	close(fd);
 	fb0.orig_width = (int)(property[5]);
 	fb0.orig_height = (int)(property[6]);
@@ -629,7 +664,8 @@ fb_config init(int width, int height){
 	if(system(fbset_str)){
 		perror("Error from fbset");
 	}
-	if(!is_current_resolution(width,height)){
+	int resolution_status = is_current_resolution(width,height);
+	if(resolution_status == 0){
 		printf("The linux framebuffer does not support the requested resolution\n"
 			"Attepting to reset resolution settings...\n");
 		sprintf(fbset_str,
@@ -637,28 +673,31 @@ fb_config init(int width, int height){
 			fb0.orig_width, fb0.orig_height, fb0.orig_width, 
 			fb0.orig_height, fb0.orig_depth);
 		if(system(fbset_str)){
-			perror("Attempt failed, message from fbset\n");
+			perror("Attempt failed, message from fbset");
 		}
 		else{
 			printf("Attempt successful.\n");
 		}
-		printf("Terminating...\n");
-		exit(1);
+		PyErr_SetString(PyExc_OSError,"Requested resolution not supported");
+		fb0.error = 1;
+		return fb0;
+	}else if(resolution_status == -1){
+		fb0.error = 1;
+		return fb0;
 	}
 	fb0.framebuffer = open("/dev/fb0",O_RDWR);
 	if (fb0.framebuffer == -1){
-		perror("Framebuffer open failed");
-		exit(1);
+		PyErr_SetString(PyExc_OSError,"Attempt to open /dev/fb0 (framebuffer 0) device failed");
+		fb0.error = 1;
+		return fb0;
 	}
 	fb0.map = (uint16_t *)(mmap(0,2*fb0.size,PROT_READ|PROT_WRITE, MAP_SHARED, fb0.framebuffer, 0));
 	if (fb0.map == MAP_FAILED){
-		perror("FRAMEBUFFER MMAP ERROR");
-		printf("Destroying buffer...\n");
-		if(close_display(fb0)){
-			perror("Additional error destroying buffer following MMAP error");
-		}
-		exit(1);
+		PyErr_SetString(PyExc_OSError,"Attempt to mmap /dev/fb0 device failed");
+		fb0.error = 1;
+		return fb0;
 	}
+	fb0.error = 0;
 	return fb0;
 }
 
@@ -670,8 +709,8 @@ int close_display(fb_config fb0){
 		fb0.orig_width, fb0.orig_height, fb0.orig_width, fb0.orig_height,
 		fb0.orig_depth);
 	if(system(fbset_str)){
-		perror("System call error");
-		exit(1);
+		PyErr_SetString(PyExc_OSError,"System call to reset resolution (via fbset subroutine) failed");
+		return 1;
 	}
 	return 0;
 }
@@ -712,6 +751,9 @@ static PyObject* py_init(PyObject *self, PyObject *args) {
     }
     fb_config* fb0_pointer = malloc(sizeof(fb_config)); 
     *fb0_pointer = init(xres,yres);
+    if(fb0_pointer->error){
+        return NULL;
+    }
     PyObject* fb0_capsule = PyCapsule_New(fb0_pointer,
                                           "framebuffer",NULL);
     Py_INCREF(fb0_capsule);
@@ -766,7 +808,7 @@ static PyObject* py_loadraw(PyObject* self, PyObject* args){
 static PyObject* py_unloadgrating(PyObject* self, PyObject* args){
     PyObject* grating_capsule;
     void* grating_pointer;
-        if (!PyArg_ParseTuple(args, "O", &grating_capsule)) {
+    if (!PyArg_ParseTuple(args, "O", &grating_capsule)) {
         return NULL;
     }
     grating_pointer = PyCapsule_GetPointer(grating_capsule,"grating_data");
@@ -794,7 +836,10 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
         return NULL;
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
-    double* grating_data = PyCapsule_GetPointer(grating_capsule,"grating_data");
+    uint16_t* grating_data = PyCapsule_GetPointer(grating_capsule,"grating_data");
+    if(grating_data == NULL){
+        return NULL;
+    }
     int start_time = time(NULL);
     double* grat_info = display_grating(grating_data,*fb0_pointer);
     PyObject* return_tuple = Py_BuildValue("(ddi)",*grat_info,*(grat_info+1),start_time);
@@ -809,7 +854,10 @@ static PyObject* py_displayraw(PyObject* self, PyObject* args){
 		return NULL;
 	}
 	fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule, "framebuffer");
-	double* raw_data = PyCapsule_GetPointer(raw_capsule, "raw_data");
+	uint16_t* raw_data = PyCapsule_GetPointer(raw_capsule, "raw_data");
+        if(raw_data == NULL){
+                return NULL;
+	}
 	int start_time = time(NULL);
 	double* raw_info = display_raw(raw_data, *fb0_pointer);
 	PyObject* return_tuple = Py_BuildValue("(ddi)", *raw_info, *(raw_info+1), start_time);
@@ -824,8 +872,7 @@ static PyObject* py_closedisplay(PyObject* self, PyObject* args){
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
     if(close_display(*fb0_pointer)){
-        perror("Error closing display");
-        exit(1);
+        return NULL;
     }
     Py_DECREF(fb0_capsule);
     Py_RETURN_NONE;

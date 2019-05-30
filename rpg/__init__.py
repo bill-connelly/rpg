@@ -75,7 +75,7 @@ def build_grating(filename,spac_freq,temp_freq,
                          %percent_diameter)
 
     filename = os.path.expanduser(filename)
-    rpigratings.draw_grating(filename,angle,spac_freq,temp_freq,
+    rpigratings.build_grating(filename,angle,spac_freq,temp_freq,
                      resolution[0],resolution[1],waveform,
                      percent_diameter, percent_center_left,
                      percent_center_top, percent_padding, verbose)

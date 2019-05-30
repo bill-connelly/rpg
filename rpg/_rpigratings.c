@@ -258,7 +258,8 @@ int build_grating(char * filename, double angle, double sf, double tf, int width
 	fb0.size = (fb0.height)*(fb0.depth)*(fb0.width)/8;
 	FILE * file = fopen(filename, "wb");
 	if(file ==NULL){
-		printf("File creation failed.\n");
+		perror("File creation failed\n");
+		PyErr_SetString(PyExc_OSError,"File creation failed.");
 		return 1;
 	}
 	printf("Drawing grating %s\n", filename);
@@ -289,7 +290,7 @@ int build_grating(char * filename, double angle, double sf, double tf, int width
 	int t, clock_status;
 	struct timespec time1, time2;
 	time1 = get_current_time(&clock_status);
-	if(!clock_status){
+	if(clock_status){
 			return -1;
 	}
 	for (t=0;t<header.frames_per_cycle;t++){
@@ -298,7 +299,7 @@ int build_grating(char * filename, double angle, double sf, double tf, int width
 		free(frame);
 		if(t==4){
 			time2 = get_current_time(&clock_status);
-			if(!clock_status){
+			if(clock_status){
 				return -1;
 			}
 			printf("Expected time to completion: %d seconds\n",header.frames_per_cycle*cmp_times(time1,time2)/1000000/5);
@@ -356,7 +357,6 @@ uint16_t* load_raw(char* filename) {
 	int page_size = getpagesize();
 	int bytes_already_read = 0;
 	int read_size;
-
 	int fh = open(filename, O_RDWR);
 	if(fh == -1) {
 		perror("Failed to open file");
@@ -417,7 +417,7 @@ int convertraw(char* filename, char* new_filename, int n_frames, int width, int 
 	char *buffer = mmap(0, len, PROT_READ, MAP_PRIVATE, fh, 0);
 
 	if (buffer == MAP_FAILED){
-		perror("MMAP failed");
+		PyErr_SetString(PyExc_OSError,"MMAP failed");
 		return 1;
 	}
 	int i = 0;
@@ -466,7 +466,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 
 		frame_end = get_current_time(&clock_status);
 		time = cmp_times(frame_start,frame_end);
-		if(!clock_status){
+		if(clock_status){
 			return NULL;
 		}
 		if(time+ADJUSTMENT<(CLOCKS_PER_SEC/raw_FPS)) {
@@ -476,7 +476,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 			return NULL;
 		}
 		frame_end = get_current_time(&clock_status);
-		if(!clock_status){
+		if(clock_status){
 			return NULL;
 		}
 		time = cmp_times(frame_start,frame_end);
@@ -488,7 +488,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 		}
 		flip_buffer(buffer, fb0);
 		frame_start = get_current_time(&clock_status);
-		if(!clock_status){
+		if(clock_status){
 			return NULL;
 		}
 		if(buffer) {
@@ -515,7 +515,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 	*slowest_frame  = 0;
 	*fastest_frame = 1000000;
 	struct timespec frame_start = get_current_time(&clock_status);
-	if(!clock_status){
+	if(clock_status){
 		return NULL;
 	}
 	struct timespec frame_end;
@@ -529,7 +529,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 		}
 
 		frame_end  = get_current_time(&clock_status);
-		if(!clock_status){
+		if(clock_status){
 			return NULL;
 		}
 		time = cmp_times(frame_start,frame_end);
@@ -540,7 +540,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 			return NULL;
 		}
 		frame_end = get_current_time(&clock_status);
-		if(!clock_status){
+		if(clock_status){
 			return NULL;
 		}
 		time = cmp_times(frame_start,frame_end);
@@ -552,7 +552,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 		}
 		flip_buffer(buffer,fb0);
 		frame_start = get_current_time(&clock_status);
-		if(!clock_status){
+		if(clock_status){
 			return NULL;
 		}
 		if(buffer){
@@ -646,8 +646,9 @@ fb_config init(int width, int height){
 	};
 	property[0] = 12*sizeof(property[0]);
 	if(ioctl(fd, _IOWR(100, 0, char *), property) == -1){
-		perror("Error from call to ioctl\n");
-		exit(1);
+		PyErr_SetString(PyExc_OSError,"Error from call to ioctl\n");
+		fb0.error = 1;
+		return fb0;
 	}
 	close(fd);
 	fb0.orig_width = (int)(property[5]);
@@ -662,7 +663,9 @@ fb_config init(int width, int height){
 		"fbset -xres %d -yres %d -vxres %d -vyres %d -depth 16",
 		fb0.width, fb0.height, fb0.width, 2*fb0.height);
 	if(system(fbset_str)){
-		perror("Error from fbset");
+		PyErr_SetString(PyExc_OSError,"Call to fbset subroutine failed.");
+		fb0.error = 1;
+		return fb0;
 	}
 	int resolution_status = is_current_resolution(width,height);
 	if(resolution_status == 0){
@@ -722,7 +725,7 @@ int close_display(fb_config fb0){
 /* Python Module Implementation                       */
 /*----------------------------------------------------*/
 
-static PyObject* py_drawgrating(PyObject *self, PyObject *args) {
+static PyObject* py_buildgrating(PyObject *self, PyObject *args) {
     char* filename;
     double angle, sf, tf;
     int width, height, waveform, percent_diameter, percent_center_left,
@@ -734,7 +737,7 @@ static PyObject* py_drawgrating(PyObject *self, PyObject *args) {
 			  &verbose)){
         return NULL;
     }
-    if(draw_grating(filename,angle,sf,tf,width,height,waveform,
+    if(build_grating(filename,angle,sf,tf,width,height,waveform,
 			percent_diameter,percent_center_left,
 			percent_center_top,percent_padding,verbose)){
         return NULL;
@@ -940,7 +943,7 @@ static PyMethodDef _rpigratings_methods[] = {
 	":rtype None:"
 },  
     {   
-        "draw_grating", py_drawgrating, METH_VARARGS,
+        "build_grating", py_buildgrating, METH_VARARGS,
         "Creates a raw animation file of a drifting grating.\n"
 	":Param filename:\n"
     	":Param angle: angle of propogation of the drifting grating (in\n"

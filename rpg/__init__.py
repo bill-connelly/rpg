@@ -15,15 +15,9 @@ performance.
 """
 import time as t
 import os, sys, random
-import RPi.GPIO as GPIO
 from collections import namedtuple
-from select import select
 
 GratPerfRec = namedtuple("GratingPerformanceRecord",["fastest_frame","slowest_frame","start_time"])
-
-#Users should edit the variable TRIGGER_PIN to the number of the pin they have conntected
-#a 3.3V signal to.
-TRIGGER_PIN = 5
 
 
 GRAY = (127,127,127)
@@ -152,7 +146,7 @@ class Screen:
         filename = os.path.expanduser(filename)
         return Raw(self, filename)
 
-    def display_grating(self, grating):
+    def display_grating(self, grating, trigger_pin = 0):
         """
         Display the currently loaded grating (grating files are created with
         the draw_grating function and loaded with the Screen.load_grating
@@ -165,12 +159,18 @@ class Screen:
         of the time of the slowest frame, and the time the
         grating began to play (in Unix Time).
         """
-        rawtuple = rpigratings.display_grating(self.capsule, grating.capsule)
-        return GratPerfRec(*rawtuple)
+        rawtuple = rpigratings.display_grating(self.capsule, grating.capsule, trigger_pin)
+        if rawtuple is None:
+                return None
+        else:
+                return GratPerfRec(*rawtuple)
 
-    def display_raw(self, raw):
-        rawtuple = rpigratings.display_raw(self.capsule, raw.capsule)
-        return GratPerfRec(*rawtuple)
+    def display_raw(self, raw, trigger_pin = 0):
+        rawtuple = rpigratings.display_raw(self.capsule, raw.capsule, trigger_pin)
+        if rawtuple is None:
+                return None
+        else:
+                return GratPerfRec(*rawtuple)
 
     def display_color(self,color):
         """
@@ -218,84 +218,59 @@ class Screen:
 
         os.chdir(cwd)
 
-    def display_raw_on_pulse(self, filename, path_of_log_file="rpglog.txt"):
+    def display_raw_on_pulse(self, filename, trigger_pin, path_of_log_file="rpglog.txt"):
 
         filename = os.path.expanduser(filename)
         path_of_log_file = os.path.expanduser(path_of_log_file)
         self.display_color(GRAY)
         raw = self.load_raw(filename)
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(TRIGGER_PIN, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        GPIO.add_event_detect(TRIGGER_PIN, GPIO.RISING, bouncetime = 5)
-
-        print("Waiting for pulse on pin " + str(TRIGGER_PIN) + ".")
-        print("Press Enter to quit waiting...")
+        print("Waiting for pulse on pin " + str(trigger_pin) + ".")
+        print("Press any key to stop waiting...")
         while True:
-            t.sleep(0.001)
-            if GPIO.event_detected(5):
-                perf = self.display_raw(raw)
-                self.display_color(GRAY)
-                with open(path_of_log_file, "a") as file:
-                    file.write("Raw: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
-                                %(filename,perf.start_time,perf.fastest_frame,perf.slowest_frame))
-            if select([sys.stdin],[],[],0)[0]: #if user presses enter
+            perf = self.display_raw(raw, trigger_pin)
+            self.display_color(GRAY)
+            if perf is None:
                 break
-
-        GPIO.cleanup()
+            with open(path_of_log_file, "a") as file:
+                file.write("Raw: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
+                                %(filename,perf.start_time,perf.fastest_frame,perf.slowest_frame))
         print("Waiting for pulses ended")
 
 
-    def display_rand_grating_on_pulse(self, dir_containing_gratings, path_of_log_file="rpglog.txt"):
+    def display_rand_grating_on_pulse(self, dir_containing_gratings, trigger_pin, path_of_log_file="rpglog.txt"):
         """
-        Upon receiving a 3.3V pulse (NOT 5V!!!), choose a grating at
-        random from dir_containing_gratings and display it. Each
-        grating in the directory is guaranteed to be displayed once
-        before any grating is displayed for the second time, and so on.
-        When not displaying gratings the screen will be filled
-        by midgray.
+        Upon receiving a 3.3V pulse (NOT 5V!!!), to trigger_pin,
+        choose a grating at random from dir_containing_gratings
+        and display it. Each grating in the directory is guaranteed
+        to be displayed once before any grating is displayed for the
+        second time, and so on. When not displaying gratings the
+        screen will be filled by midgray.
         """
  
         self.display_color(GRAY)
-        #Load all the files in dir into a list along with their names
         dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
         path_of_log_file = os.path.expanduser(path_of_log_file)
         os.chdir(dir_containing_gratings)
         gratings = []
         for file in os.listdir():
             gratings.append((self.load_grating(file),dir_containing_gratings + "/" + file))
-        #Create a copy of that list to hold gratings that
-        #haven't been displayed yet
-        #This is a shallow copy, so it shouldn't double up
-        #on memory space
         remaining_gratings = gratings.copy()
         os.chdir(os.path.dirname(os.path.abspath(__file__)))
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(TRIGGER_PIN, GPIO.IN, pull_up_down = GPIO.PUD_DOWN)
-        GPIO.add_event_detect(TRIGGER_PIN, GPIO.RISING, bouncetime = 5)
-
-        print("Waiting for pulse on pin " + str(TRIGGER_PIN) + ".")
-        print("Press Enter to quit waiting...")
+        print("Waiting for pulse on pin " + str(trigger_pin) + ".")
+        print("Press any key to stop waiting...")
         while True:
-            t.sleep(0.001)
-            if GPIO.event_detected(5):
-                #Get a random index in remaining_gratings
-                index = random.randint(0,len(remaining_gratings)-1)
-                #display that grating
-                perf = self.display_grating(remaining_gratings[index][0])
-                #display mid-gray
-                self.display_color(GRAY)
-                #log the event to file
-                with open(path_of_log_file, "a") as file:
-                    file.write("Grating: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
-                                %(remaining_gratings[index][1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
-                remaining_gratings.pop(index)
-                if len(remaining_gratings) == 0:
-                    remaining_gratings = gratings.copy()
-
-            if select([sys.stdin],[],[],0)[0]: #if user presses enter
+            index = random.randint(0,len(remaining_gratings)-1)
+            perf = self.display_grating(remaining_gratings[index][0], trigger_pin)
+            self.display_color(GRAY)
+            if perf is None:
                 break
+            with open(path_of_log_file, "a") as file:
+                file.write("Grating: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
+                                %(remaining_gratings[index][1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
+            remaining_gratings.pop(index)
+            if len(remaining_gratings) == 0:
+                remaining_gratings = gratings.copy()
 
-        GPIO.cleanup()
         print("Waiting for pulses ended")
 
     def close(self):

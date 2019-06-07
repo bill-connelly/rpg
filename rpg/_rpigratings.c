@@ -8,8 +8,15 @@
 #include <fcntl.h>
 #include <stdint.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
 #include <string.h>
 #include <time.h>
+#include <wiringPi.h>
+#include <termios.h>
+#include <stropts.h>
+#include <stdbool.h>
+
+
 #define ADJUSTMENT 5.747e-4
 #define ANGLE_0 -1
 #define ANGLE_90 -2
@@ -98,6 +105,27 @@ int cmp_times(struct timespec time1, struct timespec time2){
 	int delta_msecs = delta_secs*1000000 + delta_nsecs/1000;
 	return delta_msecs;
 }
+
+int kbhit() {
+  static const int STDIN = 0;
+  static bool is_init = false;
+
+  if(!is_init) {
+    struct termios term;
+    tcgetattr(STDIN, &term);
+    term.c_lflag &= ~ICANON;
+    tcsetattr(STDIN, TCSANOW, &term);
+    setbuf(stdin, NULL);
+    is_init = true;
+  }
+
+  int bytesWaiting;
+  ioctl(STDIN, FIONREAD, &bytesWaiting);
+  return bytesWaiting;
+}
+
+
+
 
 /*This function, as well as the init() function, both heavily
 employ the raspberry pi's mailbox property interface to facilitate
@@ -388,7 +416,7 @@ uint16_t* load_raw(char* filename) {
 	return frame_data;
 }
 
-int convertraw(char* filename, char* new_filename, int n_frames, int width, int height, float fps) {
+int convert_raw(char* filename, char* new_filename, int n_frames, int width, int height, float fps) {
 
 	int fh = open(filename, O_RDWR);
 	if (fh == -1) {
@@ -437,7 +465,18 @@ int convertraw(char* filename, char* new_filename, int n_frames, int width, int 
 	return 0;
 }
 
-double* display_raw(uint16_t *frame_data, fb_config fb0) {
+double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
+
+	pinMode(1, OUTPUT);
+	digitalWrite(1, LOW);
+	if (trig_pin > 0) {
+		pinMode(trig_pin, INPUT);
+		while (digitalRead(trig_pin) == 0) {
+			if (kbhit()) {
+				return 0;
+			}
+		}
+	}
 	fileheader_raw* header = frame_data;
 	frame_data += sizeof(fileheader_raw)/sizeof(float);
 
@@ -493,8 +532,11 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 		}
 		if(buffer) {
 			write_loc = fb0.map + fb0.size/2;
+			digitalWrite(1, HIGH);
 		} else {
 			write_loc = fb0.map;
+			digitalWrite(1, LOW);
+
 		}
 	}
 	*fastest_frame = 1000000/(*fastest_frame);
@@ -502,7 +544,19 @@ double* display_raw(uint16_t *frame_data, fb_config fb0) {
 	return fastest_frame;
 }
 
-double* display_grating(uint16_t* frame_data, fb_config fb0){
+double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
+
+	pinMode(1, OUTPUT);
+	digitalWrite(1, LOW);
+	if (trig_pin > 0) {
+		pinMode(trig_pin, INPUT);
+		while (digitalRead(trig_pin) == 0) {
+			if (kbhit()) {
+				return 0;
+			}
+		}
+	}
+
 	fileheader_t* header = frame_data;
 	frame_data += sizeof(fileheader_t)/sizeof(uint16_t);
 	uint16_t *write_loc;
@@ -515,7 +569,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 	*slowest_frame  = 0;
 	*fastest_frame = 1000000;
 	struct timespec frame_start = get_current_time(&clock_status);
-	if(clock_status){
+	if(clock_status) {
 		return NULL;
 	}
 	struct timespec frame_end;
@@ -527,39 +581,42 @@ double* display_grating(uint16_t* frame_data, fb_config fb0){
 			*write_loc = frame_data[(frame*fb0.size/2)+pixel];
 			write_loc++;
 		}
+		if(t!=0) {
+			frame_end = get_current_time(&clock_status);
+			if (clock_status){
+				return NULL;
+			}
+			time = cmp_times(frame_end,frame_start);
 
-		frame_end  = get_current_time(&clock_status);
-		if(clock_status){
-			return NULL;
-		}
-		time = cmp_times(frame_start,frame_end);
-		if(time+ADJUSTMENT<(CLOCKS_PER_SEC/FPS)){
-			usleep((CLOCKS_PER_SEC/FPS)-time-ADJUSTMENT);
-		}else{
-			PyErr_SetString(PyExc_TimeoutError,"Frame was too slow");
-			return NULL;
-		}
-		frame_end = get_current_time(&clock_status);
-		if(clock_status){
-			return NULL;
-		}
-		time = cmp_times(frame_start,frame_end);
-		if(time>(*slowest_frame) && t!=0){
-			*slowest_frame = (double)(time);
-		}
-                if(time<(*fastest_frame)){
-			*fastest_frame = (double)(time);
+			if(time+ADJUSTMENT<(CLOCKS_PER_SEC/FPS)){
+				usleep((CLOCKS_PER_SEC/FPS)-time-ADJUSTMENT);
+			}else{
+				PyErr_SetString(PyExc_TimeoutError,"Frame was too slow");
+				return NULL;
+			}
+
+			time = cmp_times(frame_start,frame_end);
+			if(time>(*slowest_frame) && t!=0){
+				*slowest_frame = (double)(time);
+			}
+                	if(time<(*fastest_frame)){
+				*fastest_frame = (double)(time);
+			}
 		}
 		flip_buffer(buffer,fb0);
 		frame_start = get_current_time(&clock_status);
-		if(clock_status){
+		if(clock_status) {
 			return NULL;
 		}
+
 		if(buffer){
 			write_loc = fb0.map + fb0.size/2;
-		}else{
+			digitalWrite(1, LOW);
+		} else {
 			write_loc = fb0.map;
+			digitalWrite(1, HIGH);
 		}
+
 	}
 	*fastest_frame = 1000000 /(*fastest_frame);
 	*slowest_frame = 1000000/(*slowest_frame);
@@ -619,6 +676,9 @@ int is_current_resolution(int xres, int yres){
 
 
 fb_config init(int width, int height){
+	wiringPiSetup();
+
+
 	fb_config fb0;
 	//To determine original width and height
 	//a mailbox property interface request is
@@ -835,7 +895,8 @@ static PyObject* py_unloadraw(PyObject* self, PyObject* args) {
 static PyObject* py_displaygrating(PyObject* self, PyObject* args){
     PyObject* fb0_capsule;
     PyObject* grating_capsule;
-    if (!PyArg_ParseTuple(args, "OO", &fb0_capsule,&grating_capsule)) {
+    int trig_pin;
+    if (!PyArg_ParseTuple(args, "OOi", &fb0_capsule,&grating_capsule,&trig_pin)) {
         return NULL;
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
@@ -844,16 +905,22 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
         return NULL;
     }
     int start_time = time(NULL);
-    double* grat_info = display_grating(grating_data,*fb0_pointer);
-    PyObject* return_tuple = Py_BuildValue("(ddi)",*grat_info,*(grat_info+1),start_time);
-    free(grat_info);
-    return return_tuple;
+    double* grat_info = display_grating(grating_data,*fb0_pointer,trig_pin);
+    if (grat_info == 0) {
+        free(grat_info);
+        Py_RETURN_NONE;
+    } else {
+        PyObject* return_tuple = Py_BuildValue("(ddi)",*grat_info,*(grat_info+1),start_time);
+        free(grat_info);
+        return return_tuple;
+    }
 }
 
 static PyObject* py_displayraw(PyObject* self, PyObject* args){
 	PyObject* fb0_capsule;
 	PyObject* raw_capsule;
-	if (!PyArg_ParseTuple(args, "OO", &fb0_capsule, &raw_capsule)) {
+	int trig_pin;
+	if (!PyArg_ParseTuple(args, "OOi", &fb0_capsule, &raw_capsule, &trig_pin)) {
 		return NULL;
 	}
 	fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule, "framebuffer");
@@ -862,10 +929,15 @@ static PyObject* py_displayraw(PyObject* self, PyObject* args){
                 return NULL;
 	}
 	int start_time = time(NULL);
-	double* raw_info = display_raw(raw_data, *fb0_pointer);
-	PyObject* return_tuple = Py_BuildValue("(ddi)", *raw_info, *(raw_info+1), start_time);
-	free(raw_info);
-	return return_tuple;
+	double* raw_info = display_raw(raw_data, *fb0_pointer, trig_pin);
+	if (raw_info == 0) {
+		free(raw_info);
+		Py_RETURN_NONE;
+	} else {
+		PyObject* return_tuple = Py_BuildValue("(ddi)", *raw_info, *(raw_info+1), start_time);
+		free(raw_info);
+		return return_tuple;
+	}
 }
 
 static PyObject* py_closedisplay(PyObject* self, PyObject* args){
@@ -890,7 +962,7 @@ static PyObject* py_convertraw(PyObject* self, PyObject* args){
 				&n_frames, &width, &height, &fps)) {
 		return NULL;
 	}
-	if(convertraw(filename, new_filename, n_frames, width, height, fps)) {
+	if(convert_raw(filename, new_filename, n_frames, width, height, fps)) {
 		return NULL;
 	}
 	Py_RETURN_NONE;

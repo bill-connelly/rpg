@@ -7,7 +7,8 @@ from setuptools.command.install import install
 
 rpygrating_module = Extension('_rpigratings', 
 		sources = ['rpg/_rpigratings.c'],
-                extra_compile_args = ['-O3'])
+                extra_compile_args = ['-O3'],
+		extra_link_args=['-lwiringPi'])
 
 
 #Edit .bashrc to stop cursor showing up on main monitor
@@ -20,19 +21,27 @@ class InstallWrapper(install):
 
   def _edit_bashrc(self):
     try:
-      f = open(expanduser("~/.bashrc"), "a")
-      f.write('\n')
-      f.write('# Added by Python RPG module to remove cursor all windows but SSH\n')
-      f.write('if [ -n "$SSH_CONNECTION" ]; then\n')
-      f.write('  setterm -cursor on\n')
-      f.write('else\n')
-      f.write('  setterm -cursor off\n')
-      f.write('fi\n')
+      with open(expanduser("~/.bashrc"), 'r') as f:
+        found = f.read().find('RPG_CURSOR_HIDE')
     except PermissionError:
+      print("Install failed")
       print("Try running install as sudo")
-      print("You will have to uninstall before installing again")
-    finally:
-      f.close()
+      return
+
+    if found == -1:
+      try:
+        with open(expanduser("~/.bashrc"), "a") as f:
+          f.write('\n')
+          f.write('# RPG_CURSOR_HIDE\n')
+          f.write('# Added by Python RPG module to remove cursor all windows but SSH\n')
+          f.write('if [ -n "$SSH_CONNECTION" ]; then\n')
+          f.write('  setterm -cursor on\n')
+          f.write('else\n')
+          f.write('  setterm -cursor off\n')
+          f.write('fi\n')
+      except PermissionError:
+        print("Install failed")
+        print("Try running install as sudo")
 
 setup(name='rpg',
       version='0.1.0',

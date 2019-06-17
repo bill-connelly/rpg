@@ -311,6 +311,9 @@ int build_grating(char * filename, double angle, double sf, double tf, int width
 	//(worst case is just FPS*DURATION) and write it, tf, and sf in a header.
 	fileheader_t header;
 	header.frames_per_cycle = wavelength / gcd(wavelength,speed);
+	if(header.frames_per_cycle > FPS * DURATION) {
+		header.frames_per_cycle = FPS * DURATION;
+	}
 	printf("Frame per cycle is %d\n",header.frames_per_cycle);
 	header.spacial_frequency = (uint16_t)(sf);
 	header.temporal_frequency = (uint16_t)(tf);

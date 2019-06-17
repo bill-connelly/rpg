@@ -101,7 +101,6 @@ def build_list_of_gratings(list_of_angles, path_to_directory, spac_freq,
 def convert_raw(filename, new_filename, n_frames, width, height, fps):
 	filename = os.path.expanduser(filename)
 	new_filename = os.path.expanduser(new_filename)
-
 	rpigratings.convertraw(filename, new_filename, n_frames, width, height, fps)
 
 
@@ -188,7 +187,7 @@ class Screen:
                                  + "each between 0 and 255.")
         rpigratings.display_color(self.capsule,color[0],color[1],color[2])
 
-    def display_gratings_randomly(self, dir_containing_gratings, path_of_log_file="rpglog.txt"):
+    def display_gratings_randomly(self, dir_containing_gratings, intertrial_time, logfile_name="rpglog.txt"):
         """
         For each file in directory dir_containing_gratings, attempt to display
         that file as a grating. The order of display is randomised. The location
@@ -196,34 +195,24 @@ class Screen:
         highest level directory. Gratings are seperated by one second of midgray.
         """
 
-        dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
         path_of_log_file = os.path.expanduser(path_of_log_file)
-        cwd = os.getcwd()
 
-        os.chdir(dir_containing_gratings)
+        dir_containg_gratings = os.path.expanduser(dir_containing_gratings)
         gratings = []
-        for file in os.listdir():
+        for file in os.listdir(dir_containing_gratings):
             gratings.append((self.load_grating(file),dir_containing_gratings + "/" + file))
         random.shuffle(gratings)
         record = []
         for grating in gratings:
             perf = self.display_grating(grating[0])
             self.display_color(GRAY)
-            record.append("Grating: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
-                           %(grating[1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
-            t.sleep(1)
-        os.chdir(os.path.dirname(os.path.abspath(__file__)))
-        with open(path_of_log_file, "a") as file:
-            file.writelines(record)
+            self.print_log("Grating", logfile_name, grating[1], perf)
+            t.sleep(intertrial_time)
 
-        os.chdir(cwd)
+    def display_raw_on_pulse(self, filename, trigger_pin, logfile_name="rpglog.txt"):
 
-    def display_raw_on_pulse(self, filename, trigger_pin, path_of_log_file="rpglog.txt"):
-
-        filename = os.path.expanduser(filename)
-        path_of_log_file = os.path.expanduser(path_of_log_file)
         self.display_color(GRAY)
-        raw = self.load_raw(filename)
+        raw = self.load_raw(os.path.expanduser(filename))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
         while True:
@@ -231,13 +220,12 @@ class Screen:
             self.display_color(GRAY)
             if perf is None:
                 break
-            with open(path_of_log_file, "a") as file:
-                file.write("Raw: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
-                                %(filename,perf.start_time,perf.fastest_frame,perf.slowest_frame))
+            self.print_log("Raw", logfile_name, filename, perf)
+
         print("Waiting for pulses ended")
 
 
-    def display_rand_grating_on_pulse(self, dir_containing_gratings, trigger_pin, path_of_log_file="rpglog.txt"):
+    def display_rand_grating_on_pulse(self, dir_containing_gratings, trigger_pin, logfile_name="rpglog.txt"):
         """
         Upon receiving a 3.3V pulse (NOT 5V!!!), to trigger_pin,
         choose a grating at random from dir_containing_gratings
@@ -248,14 +236,12 @@ class Screen:
         """
  
         self.display_color(GRAY)
+
         dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
-        path_of_log_file = os.path.expanduser(path_of_log_file)
-        os.chdir(dir_containing_gratings)
         gratings = []
-        for file in os.listdir():
-            gratings.append((self.load_grating(file),dir_containing_gratings + "/" + file))
+        for file in os.listdir(dir_containing_gratings):
+            gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
         remaining_gratings = gratings.copy()
-        os.chdir(os.path.dirname(os.path.abspath(__file__)))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
         while True:
@@ -264,14 +250,19 @@ class Screen:
             self.display_color(GRAY)
             if perf is None:
                 break
-            with open(path_of_log_file, "a") as file:
-                file.write("Grating: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
-                                %(remaining_gratings[index][1],perf.start_time,perf.fastest_frame,perf.slowest_frame))
+            self.print_log("Grating", logfile_name, remaining_gratings[index][1], perf)
             remaining_gratings.pop(index)
             if len(remaining_gratings) == 0:
                 remaining_gratings = gratings.copy()
 
         print("Waiting for pulses ended")
+
+    def print_log(self, filename, file_type, file_displayed, perf):
+        path_of_logfile = os.path.expanduser("~/rpg/logs/") + filename
+        with open(path_of_logfile, "a") as file:
+            file.write("%s: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
+                %(file_type, file_displayed, perf.start_time, perf.fastest_frame, perf.slowest_frame))
+
 
     def close(self):
         """

@@ -99,11 +99,11 @@ struct timespec get_current_time(int* status){
 
 int cmp_times(struct timespec time1, struct timespec time2){
 	/*Compare the elapsed time between two timespec
-	structs, returns as integer number of msecs*/
+	structs, returns as integer number of usecs*/
 	int delta_secs = time2.tv_sec - time1.tv_sec;
 	long delta_nsecs = time2.tv_nsec - time1.tv_nsec;
-	int delta_msecs = delta_secs*1000000 + delta_nsecs/1000;
-	return delta_msecs;
+	int delta_usecs = delta_secs*1000000 + delta_nsecs/1000;
+	return delta_usecs;
 }
 
 int kbhit() {

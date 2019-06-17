@@ -206,7 +206,7 @@ class Screen:
         for grating in gratings:
             perf = self.display_grating(grating[0])
             self.display_color(GRAY)
-            self.print_log("Grating", logfile_name, grating[1], perf)
+            self.print_log(logfile_name, "Grating", grating[1], perf)
             t.sleep(intertrial_time)
 
     def display_raw_on_pulse(self, filename, trigger_pin, logfile_name="rpglog.txt"):
@@ -220,7 +220,7 @@ class Screen:
             self.display_color(GRAY)
             if perf is None:
                 break
-            self.print_log("Raw", logfile_name, filename, perf)
+            self.print_log(logfile_name, "Raw", filename, perf)
 
         print("Waiting for pulses ended")
 
@@ -250,7 +250,7 @@ class Screen:
             self.display_color(GRAY)
             if perf is None:
                 break
-            self.print_log("Grating", logfile_name, remaining_gratings[index][1], perf)
+            self.print_log(logfile_name, "Grating", remaining_gratings[index][1], perf)
             remaining_gratings.pop(index)
             if len(remaining_gratings) == 0:
                 remaining_gratings = gratings.copy()

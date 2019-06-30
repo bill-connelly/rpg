@@ -159,7 +159,7 @@ class Screen:
         grating began to play (in Unix Time).
         """
         if type(grating) == str:
-		raise AttributeError("Got string, expected a grating object.\n" +
+                raise AttributeError("Got string, expected a grating object.\n" +
                                      "Did you try to pass a filename?\n" +
                                      "Pass the filename to Screen.load_grating(1)" +
                                      "first.\n")

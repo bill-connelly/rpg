@@ -162,7 +162,7 @@ class Screen:
                 raise AttributeError("Got string, expected a grating object.\n" +
                                      "Did you try to pass a filename?\n" +
                                      "Pass the filename to Screen.load_grating(1)" +
-                                     "first.\n")
+                                     " first.\n")
         rawtuple = rpigratings.display_grating(self.capsule, grating.capsule, trigger_pin)
         if rawtuple is None:
                 return None

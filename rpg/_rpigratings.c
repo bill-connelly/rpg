@@ -17,7 +17,7 @@
 #include <stdbool.h>
 
 
-#define ADJUSTMENT 5.747e-4
+#define ADJUSTMENT 300 //300 microsecond fudge factor
 #define ANGLE_0 -1
 #define ANGLE_90 -2
 #define ANGLE_180 -3
@@ -576,6 +576,8 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 		return NULL;
 	}
 	struct timespec frame_end;
+        struct timespec test_time;
+        long delta_nsecs;
 	for (t=0;t<FRAMES;t++){
 	//Play each frame by copying data to the memory-mapped area
 		frame = t%(header->frames_per_cycle);
@@ -589,7 +591,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 			if (clock_status){
 				return NULL;
 			}
-			time = cmp_times(frame_end,frame_start);
+			time = cmp_times(frame_start, frame_end);
 
 			if(time+ADJUSTMENT<(CLOCKS_PER_SEC/FPS)){
 				usleep((CLOCKS_PER_SEC/FPS)-time-ADJUSTMENT);
@@ -597,9 +599,9 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 				PyErr_SetString(PyExc_TimeoutError,"Frame was too slow");
 				return NULL;
 			}
-
+			frame_end = get_current_time(&clock_status);
 			time = cmp_times(frame_start,frame_end);
-			if(time>(*slowest_frame) && t!=0){
+			if(time>(*slowest_frame)){
 				*slowest_frame = (double)(time);
 			}
                 	if(time<(*fastest_frame)){
@@ -607,19 +609,17 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 			}
 		}
 		flip_buffer(buffer,fb0);
-		frame_start = get_current_time(&clock_status);
-		if(clock_status) {
-			return NULL;
-		}
-
 		if(buffer){
-			write_loc = fb0.map + fb0.size/2;
 			digitalWrite(1, LOW);
+			write_loc = fb0.map + fb0.size/2;
 		} else {
 			write_loc = fb0.map;
 			digitalWrite(1, HIGH);
 		}
-
+		frame_start = get_current_time(&clock_status);
+		if(clock_status) {
+			return NULL;
+		}
 	}
 	*fastest_frame = 1000000 /(*fastest_frame);
 	*slowest_frame = 1000000/(*slowest_frame);

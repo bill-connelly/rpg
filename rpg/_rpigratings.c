@@ -15,6 +15,7 @@
 #include <termios.h>
 #include <stropts.h>
 #include <stdbool.h>
+#include <linux/fb.h>
 
 
 #define ADJUSTMENT 5.747e-4
@@ -484,6 +485,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 	frame_data += sizeof(fileheader_raw)/sizeof(float);
 
 	uint16_t *write_loc;
+	__u32 dummy;
 	int t, buffer, pixel, frame, clock_status;
 	double time;
 	write_loc = fb0.map + fb0.size/2;
@@ -505,28 +507,19 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 			*write_loc = frame_data[(frame*fb0.size/2)+pixel];
 			write_loc++;
 		}
-
-		frame_end = get_current_time(&clock_status);
-		time = cmp_times(frame_start,frame_end);
-		if(clock_status){
-			return NULL;
-		}
-		if(time+ADJUSTMENT<(CLOCKS_PER_SEC/raw_FPS)) {
-			usleep((CLOCKS_PER_SEC/raw_FPS)-time-ADJUSTMENT);
-		} else {
-			PyErr_SetString(PyExc_TimeoutError, "A frame was too slow");
-			return NULL;
-		}
-		frame_end = get_current_time(&clock_status);
-		if(clock_status){
-			return NULL;
-		}
-		time = cmp_times(frame_start,frame_end);
-		if(time>(*slowest_frame) && t != 0) {
-			*slowest_frame = (double)(time);
-		}
-		if(time<(*fastest_frame)){
-			*fastest_frame = (double)(time);
+		if(t!=0){
+			ioctl(fb0.framebuffer,FBIO_WAITFORVSYNC,&dummy);
+			frame_end = get_current_time(&clock_status);
+			if(clock_status){
+				return NULL;
+			}
+			time = cmp_times(frame_start,frame_end);
+			if(time>(*slowest_frame) && t != 0) {
+				*slowest_frame = (double)(time);
+			}
+			if(time<(*fastest_frame)){
+				*fastest_frame = (double)(time);
+			}
 		}
 		flip_buffer(buffer, fb0);
 		frame_start = get_current_time(&clock_status);
@@ -563,6 +556,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 	fileheader_t* header = frame_data;
 	frame_data += sizeof(fileheader_t)/sizeof(uint16_t);
 	uint16_t *write_loc;
+	__u32 dummy = 0;
 	int t,buffer,pixel,frame, clock_status;
 	double time;
 	//We want to write to the second buffer
@@ -585,19 +579,11 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 			write_loc++;
 		}
 		if(t!=0) {
+			ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
 			frame_end = get_current_time(&clock_status);
 			if (clock_status){
 				return NULL;
 			}
-			time = cmp_times(frame_end,frame_start);
-
-			if(time+ADJUSTMENT<(CLOCKS_PER_SEC/FPS)){
-				usleep((CLOCKS_PER_SEC/FPS)-time-ADJUSTMENT);
-			}else{
-				PyErr_SetString(PyExc_TimeoutError,"Frame was too slow");
-				return NULL;
-			}
-
 			time = cmp_times(frame_start,frame_end);
 			if(time>(*slowest_frame) && t!=0){
 				*slowest_frame = (double)(time);

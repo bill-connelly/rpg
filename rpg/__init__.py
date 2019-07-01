@@ -153,11 +153,16 @@ class Screen:
         after displaying it unless cleanup is set to False.
 
         Returns a namedtuple (from the collections module) with the fields
-        mean_FPS, slowest_frame_FPS,
-        and start_time; these refer respectively to the average FPS, the inverse
-        of the time of the slowest frame, and the time the
+        fastest_frame, slowest_frame,
+        and start_time; these refer respectively to the inverse time of the fastest frame 
+        (intantaneous FPS), the inverse of the time of the slowest frame, and the time the
         grating began to play (in Unix Time).
         """
+        if type(grating) == str:
+                raise AttributeError("Got string, expected a grating object.\n" +
+                                     "Did you try to pass a filename?\n" +
+                                     "Pass the filename to Screen.load_grating(1)" +
+                                     " first.\n")
         rawtuple = rpigratings.display_grating(self.capsule, grating.capsule, trigger_pin)
         if rawtuple is None:
                 return None

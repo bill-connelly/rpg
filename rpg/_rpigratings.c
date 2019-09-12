@@ -15,17 +15,17 @@
 #include <termios.h>
 #include <stropts.h>
 #include <stdbool.h>
+#include <linux/fb.h>
 
-
-#define ADJUSTMENT 300 //300 microsecond fudge factor
 #define ANGLE_0 -1
 #define ANGLE_90 -2
 #define ANGLE_180 -3
 #define ANGLE_270 -4
 #define SINE 1
 #define SQUARE 0
-#define FPS 60 //The target FPS for animations
+#define ADJUSTMENT 5000 //Fiddle factor to get RAW movies accurate
 #define DURATION 1 //The duration of an animation.
+#define FPS 60
 #define FRAMES DURATION*FPS
 #define DEGREES_SUBTENDED 80 //The degrees of visual angle
 			     // subtended by the screen
@@ -97,12 +97,16 @@ struct timespec get_current_time(int* status){
 	return t;
 }
 
-int cmp_times(struct timespec time1, struct timespec time2){
+long cmp_times(struct timespec time1, struct timespec time2){
 	/*Compare the elapsed time between two timespec
 	structs, returns as integer number of usecs*/
-	int delta_secs = time2.tv_sec - time1.tv_sec;
-	long delta_nsecs = time2.tv_nsec - time1.tv_nsec;
-	int delta_usecs = delta_secs*1000000 + delta_nsecs/1000;
+	long long total_nsec1 = time1.tv_nsec + 1000000000*(long long)(time1.tv_sec);
+	long long total_nsec2 = time2.tv_nsec + 1000000000*(long long)(time2.tv_sec);
+	if(total_nsec1 > total_nsec2) {
+		printf("Compare time error: time 2 occoured before from 1");
+		exit(1);
+	}
+	long delta_usecs = (total_nsec2 - total_nsec1)/1000;
 	return delta_usecs;
 }
 
@@ -132,14 +136,16 @@ employ the raspberry pi's mailbox property interface to facilitate
 communciation with the videocore. For more information, refer to
 github.com/raspberrypi/firmware/wiki/Mailbox-property-interface*/
 
-int flip_buffer(int buffer_num, fb_config fb0){
+void flip_buffer(int buffer_num, fb_config fb0){
 	/* Flip the front- and back-buffers in the double-buffering
 	system */
+
 	int fd = open("/dev/vcio",0);
 	if(fd == -1){
 		perror("VCIO OPEN ERROR: ");
 		return 1;
 	}
+
 	volatile uint32_t property[32] __attribute__((aligned(16))) = 
 	{
 	0x00000000,//Buffer size in bytes
@@ -156,11 +162,11 @@ int flip_buffer(int buffer_num, fb_config fb0){
 		property[6] = fb0.height;
 	}
 	//send request via property interface using ioctl
+
 	if(ioctl(fd, _IOWR(100, 0, char *), property) == -1){
 		perror("BUFFER FLIP IOCTL ERROR");
-		}
+	}
 	close(fd);
-	return 0;
 }
 
 
@@ -333,7 +339,7 @@ int build_grating(char * filename, double angle, double sf, double tf, int width
 			if(clock_status){
 				return -1;
 			}
-			printf("Expected time to completion: %d seconds\n",header.frames_per_cycle*cmp_times(time1,time2)/1000000/5);
+			printf("Expected time to completion: %ld seconds\n",header.frames_per_cycle*cmp_times(time1,time2)/1000000/5);
 		}
 	}
 	fclose(file);
@@ -485,20 +491,25 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 
 	uint16_t *write_loc;
 	int t, buffer, pixel, frame, clock_status;
-	double time;
+	long frame_duration;
 	write_loc = fb0.map + fb0.size/2;
-	double *fastest_frame = malloc(2*sizeof(double));
-	double *slowest_frame = fastest_frame+1;
+	long *fastest_frame = malloc(2*sizeof(long));
+	long *slowest_frame = fastest_frame+1;
 	*slowest_frame = 0;
 	*fastest_frame = 1000000;
-	struct timespec frame_start = get_current_time(&clock_status);
-	struct timespec frame_end;
-	if(!clock_status){
-		return NULL;
-	}
+	struct timespec frame_start, frame_end;
+	__u32 dummy = 0;
+
 	int n_frames = header -> n_frames;
 	float raw_FPS = header -> fps;
+
 	for (t = 0; t < n_frames; t++) {
+		frame_end = frame_start;
+		frame_start = get_current_time(&clock_status);
+		if(clock_status) {
+			return NULL;
+		}
+
 		frame = t;
 		buffer = t%2;
 		for(pixel = 0; pixel < fb0.size/2; pixel++) {
@@ -506,32 +517,20 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 			write_loc++;
 		}
 
-		frame_end = get_current_time(&clock_status);
-		time = cmp_times(frame_start,frame_end);
-		if(clock_status){
-			return NULL;
-		}
-		if(time+ADJUSTMENT<(CLOCKS_PER_SEC/raw_FPS)) {
-			usleep((CLOCKS_PER_SEC/raw_FPS)-time-ADJUSTMENT);
-		} else {
-			PyErr_SetString(PyExc_TimeoutError, "A frame was too slow");
-			return NULL;
-		}
-		frame_end = get_current_time(&clock_status);
-		if(clock_status){
-			return NULL;
-		}
-		time = cmp_times(frame_start,frame_end);
-		if(time>(*slowest_frame) && t != 0) {
-			*slowest_frame = (double)(time);
-		}
-		if(time<(*fastest_frame)){
-			*fastest_frame = (double)(time);
-		}
 		flip_buffer(buffer, fb0);
-		frame_start = get_current_time(&clock_status);
-		if(clock_status){
-			return NULL;
+		ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
+
+		//usleep((int) ((1/raw_FPS)*1000000 - ADJUSTMENT));
+
+		if (t != 0) {
+			frame_duration = cmp_times(frame_end, frame_start);
+			printf("Frame duration is %f, \t Goal is %f \n", ((float)frame_duration)/1000, (1/raw_FPS)*1000); 
+			if(time>(*slowest_frame)) {
+				*slowest_frame = frame_duration;
+			}
+			if(time<(*fastest_frame)){
+				*fastest_frame = frame_duration;
+			}
 		}
 		if(buffer) {
 			write_loc = fb0.map + fb0.size/2;
@@ -562,53 +561,45 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 
 	fileheader_t* header = frame_data;
 	frame_data += sizeof(fileheader_t)/sizeof(uint16_t);
+
 	uint16_t *write_loc;
-	int t,buffer,pixel,frame, clock_status;
-	double time;
-	//We want to write to the second buffer
+	int t, buffer, pixel, frame, clock_status;
+	long frame_duration;
 	write_loc = fb0.map + fb0.size/2;
-	double* fastest_frame = malloc(2*sizeof(double));
-	double* slowest_frame = fastest_frame+1;
+	long* fastest_frame = malloc(2*sizeof(long));
+	long* slowest_frame = fastest_frame+1;
 	*slowest_frame  = 0;
 	*fastest_frame = 1000000;
-	struct timespec frame_start = get_current_time(&clock_status);
-	if(clock_status) {
-		return NULL;
-	}
-	struct timespec frame_end;
-        struct timespec test_time;
-        long delta_nsecs;
-	for (t=0;t<FRAMES;t++){
-	//Play each frame by copying data to the memory-mapped area
+	struct timespec frame_start, frame_end;
+	__u32 dummy = 0;
+
+	for (t=0; t < FRAMES; t++){
+                frame_end = frame_start;
+                frame_start = get_current_time(&clock_status);
+		if(clock_status) {
+			return NULL;
+		}
+
 		frame = t%(header->frames_per_cycle);
 		buffer = t%2;
-		for(pixel = 0;pixel<fb0.size/2;pixel++){
+		for(pixel = 0; pixel<fb0.size/2; pixel++){
 			*write_loc = frame_data[(frame*fb0.size/2)+pixel];
 			write_loc++;
 		}
-		if(t!=0) {
-			frame_end = get_current_time(&clock_status);
-			if (clock_status){
-				return NULL;
-			}
-			time = cmp_times(frame_start, frame_end);
 
-			if(time+ADJUSTMENT<(CLOCKS_PER_SEC/FPS)){
-				usleep((CLOCKS_PER_SEC/FPS)-time-ADJUSTMENT);
-			}else{
-				PyErr_SetString(PyExc_TimeoutError,"Frame was too slow");
-				return NULL;
+		flip_buffer(buffer, fb0);
+		ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
+
+		if (t != 0) {
+			frame_duration = cmp_times(frame_end, frame_start);
+			if(frame_duration > (*slowest_frame)){
+				*slowest_frame = frame_duration;
 			}
-			frame_end = get_current_time(&clock_status);
-			time = cmp_times(frame_start,frame_end);
-			if(time>(*slowest_frame)){
-				*slowest_frame = (double)(time);
-			}
-                	if(time<(*fastest_frame)){
-				*fastest_frame = (double)(time);
+               		if(frame_duration < (*fastest_frame)){
+				*fastest_frame = frame_duration;
 			}
 		}
-		flip_buffer(buffer,fb0);
+
 		if(buffer){
 			digitalWrite(1, LOW);
 			write_loc = fb0.map + fb0.size/2;
@@ -616,13 +607,9 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 			write_loc = fb0.map;
 			digitalWrite(1, HIGH);
 		}
-		frame_start = get_current_time(&clock_status);
-		if(clock_status) {
-			return NULL;
-		}
 	}
 	*fastest_frame = 1000000 /(*fastest_frame);
-	*slowest_frame = 1000000/(*slowest_frame);
+	*slowest_frame = 1000000 /(*slowest_frame);
 	return fastest_frame;
 }
 
@@ -908,12 +895,12 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
         return NULL;
     }
     int start_time = time(NULL);
-    double* grat_info = display_grating(grating_data,*fb0_pointer,trig_pin);
+    long* grat_info = display_grating(grating_data,*fb0_pointer,trig_pin);
     if (grat_info == 0) {
         free(grat_info);
         Py_RETURN_NONE;
     } else {
-        PyObject* return_tuple = Py_BuildValue("(ddi)",*grat_info,*(grat_info+1),start_time);
+        PyObject* return_tuple = Py_BuildValue("(lli)",*grat_info,*(grat_info+1),start_time);
         free(grat_info);
         return return_tuple;
     }
@@ -932,12 +919,12 @@ static PyObject* py_displayraw(PyObject* self, PyObject* args){
                 return NULL;
 	}
 	int start_time = time(NULL);
-	double* raw_info = display_raw(raw_data, *fb0_pointer, trig_pin);
+	long* raw_info = display_raw(raw_data, *fb0_pointer, trig_pin);
 	if (raw_info == 0) {
 		free(raw_info);
 		Py_RETURN_NONE;
 	} else {
-		PyObject* return_tuple = Py_BuildValue("(ddi)", *raw_info, *(raw_info+1), start_time);
+		PyObject* return_tuple = Py_BuildValue("(lli)", *raw_info, *(raw_info+1), start_time);
 		free(raw_info);
 		return return_tuple;
 	}

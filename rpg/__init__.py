@@ -227,7 +227,7 @@ class Screen:
 
     def display_rand_grating_on_pulse(self, dir_containing_gratings, trigger_pin, logfile_name="rpglog.txt"):
         """
-        Upon receiving a 3.3V pulse (NOT 5V!!!), to trigger_pin,
+        Upon receiving a 3.3V pulse (NOT 5V!!!), to xtrigger_pin,
         choose a grating at random from dir_containing_gratings
         and display it. Each grating in the directory is guaranteed
         to be displayed once before any grating is displayed for the

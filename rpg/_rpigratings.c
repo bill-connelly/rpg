@@ -23,10 +23,9 @@
 #define ANGLE_270 -4
 #define SINE 1
 #define SQUARE 0
-#define ADJUSTMENT 5000 //Fiddle factor to get RAW movies accurate
-#define DURATION 1 //The duration of an animation.
-#define FPS 60
-#define FRAMES DURATION*FPS
+
+
+
 #define DEGREES_SUBTENDED 80 //The degrees of visual angle
 			     // subtended by the screen
 
@@ -48,15 +47,17 @@ typedef struct {
 	uint16_t frames_per_cycle;
 	uint16_t spacial_frequency;
 	uint16_t temporal_frequency;
+	uint16_t frames_per_second;
+	uint16_t n_frames;
 }fileheader_t;
 
 typedef struct {
 	// Unecessarily large variable types so that all
 	// variables are 4 bytes long
-	long int n_frames;
 	long int width;
 	long int height;
-	float fps;
+	long int frames_per_second;
+	long int n_frames;
 } fileheader_raw;
 
 uint16_t rgb_to_uint(int red, int green, int blue){
@@ -110,25 +111,70 @@ long cmp_times(struct timespec time1, struct timespec time2){
 	return delta_usecs;
 }
 
-int kbhit() {
-  static const int STDIN = 0;
-  static bool is_init = false;
+int kbhit(void) {
+	static const int STDIN = 0;
+	static bool is_init = false;
 
-  if(!is_init) {
-    struct termios term;
-    tcgetattr(STDIN, &term);
-    term.c_lflag &= ~ICANON;
-    tcsetattr(STDIN, TCSANOW, &term);
-    setbuf(stdin, NULL);
-    is_init = true;
-  }
+ 	if(!is_init) {
+		struct termios term;
+		tcgetattr(STDIN, &term);
+		term.c_lflag &= ~ICANON;
+		tcsetattr(STDIN, TCSANOW, &term);
+		setbuf(stdin, NULL);
+		is_init = true;
+	}
 
-  int bytesWaiting;
-  ioctl(STDIN, FIONREAD, &bytesWaiting);
-  return bytesWaiting;
+	int bytesWaiting;
+	ioctl(STDIN, FIONREAD, &bytesWaiting);
+	return bytesWaiting;
 }
 
 
+int int_round(float x) {
+	if (x < 0.0) {
+		return (int)(x - 0.5);
+	} else {
+		return (int)(x + 0.5);
+	}
+}
+
+
+float mean_long(long a[], int  n) {
+	int i;
+	long sum = 0;
+	for (i = 0; i < n; i++) {
+		sum += a[i];
+	}
+	return ((float) sum)/n;
+}
+
+int get_refresh_rate(void) {
+	int fb = open("/dev/fb0",O_RDWR);
+	int n_reps = 11;
+	struct timespec times[n_reps];
+	int clock_status;
+	__u32 dummy = 0;
+
+	int i;
+	for (i = 0; i < n_reps; i++) {
+		ioctl(fb, FBIO_WAITFORVSYNC, &dummy);
+		times[i] = get_current_time(&clock_status);
+	}
+
+	close(fb);
+
+	long delta_usecs[n_reps-1];
+	for (i = 0; i < n_reps-1; i++) {
+		delta_usecs[i] = cmp_times(times[i], times[i+1]);
+	}
+
+	int frame_rate = int_round( 1/( mean_long(delta_usecs, n_reps-1)/1000000 ) );
+	return frame_rate;
+}
+
+double gaussian(int radius, int sigma) {
+	return exp( -( (radius * radius) / (double) ( 2*sigma*sigma ) ) );
+}
 
 
 /*This function, as well as the init() function, both heavily
@@ -170,7 +216,7 @@ void flip_buffer(int buffer_num, fb_config fb0){
 }
 
 
-uint16_t squarewave(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine, double weighting){
+uint16_t squarewave(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine, double weight, double contrast, int background){
 	//Returns a (x,y) pixel's brightness for a squarewave
 	unsigned short black = 0;
 	unsigned short white = 255;
@@ -194,14 +240,14 @@ uint16_t squarewave(int x, int y, int t, int wavelength, int speed, double angle
 	} else {
 		brightness = black;
 	}
-	brightness = (127 - brightness) * weighting + 127;
+	brightness = contrast * weight * (127 - brightness) + 127;
 
 	return rgb_to_uint(brightness, brightness, brightness);
 }
 
 
 
-uint16_t sinewave(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine, double weighting){
+uint16_t sinewave(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine, double weight, double contrast, int background){
 	//Returns a (x,y) pixel's brightness for a sine wave
 	double brightness;
 	double x_prime;
@@ -217,12 +263,38 @@ uint16_t sinewave(int x, int y, int t, int wavelength, int speed, double angle, 
 		x_prime = (cosine*x + sine*y)+(speed*t);
 	}
 
-	brightness = weighting * (127*sin(2*M_PI*(x_prime)/wavelength)) + 127;
+	brightness = contrast * weight * 127 * sin(2*M_PI*(x_prime)/wavelength) + 127;
 
 	return rgb_to_uint(brightness,brightness,brightness);
 }
 
-uint16_t * build_frame(int t, double angle, fb_config framebuffer, int wavelength, int speed, int waveform, int center_j, int center_i, int radius, double padding){
+uint16_t gabor(int x, int y, int t, int wavelength, int speed, double angle, double cosine, double sine, double weight, double contrast, int background) {
+        //Returns a (x,y) pixel's brightness for a gabor patch
+        double brightness, x_prime, amplitude;
+
+
+        if(angle == ANGLE_0){
+                x_prime = -x + speed*t;
+        }else if(angle == ANGLE_90){
+                x_prime = y + speed*t;
+        }else if(angle==ANGLE_180){
+                x_prime = x + speed*t;
+        }else if(angle==ANGLE_270){
+                x_prime = -y + speed*t;
+        }else{
+                x_prime = (cosine*x + sine*y)+(speed*t);
+        }
+        if (background < 128) {
+          amplitude = contrast * weight * background;
+        } else {
+          amplitude = contrast * weight * (255 - background);
+        }
+        brightness = amplitude * sin(2*M_PI*(x_prime)/wavelength) + background;
+        return rgb_to_uint(brightness,brightness,brightness);
+}
+
+
+uint16_t * build_frame(int t, double angle, fb_config framebuffer, int wavelength, int speed, int waveform, double contrast, int background, int center_j, int center_i, int sigma, int radius, int padding){
 	angle = ((int)(angle)%360 + 360)%360;
 	if(angle==0){
 		angle = ANGLE_0;
@@ -248,30 +320,35 @@ uint16_t * build_frame(int t, double angle, fb_config framebuffer, int wavelengt
 	for(i=0;i<framebuffer.height;i++){ //for each row of pixels
 		for(j=0;j<framebuffer.width;j++){ //for each column of pixels
 			//set each pixel's brightness
-			if( radius == 0) { //if we have no radius and are doing fullscreen
+			if( radius == 0 && sigma == 0) { //if we have no radius or sigma and are doing fullscreen
 				if(waveform==SQUARE){
-					*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, 1);
+					*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, 1, contrast, background);
 				}else if(waveform==SINE){
-					*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, 1);
+					*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, 1, contrast, background);
 				}
-			} else { //if we have a radius and hence aren't doing full screen
+			} else if (sigma == 0) { //if sigma == 0 then we're doing a circle  and hence aren't doing full screen
 	                        int point_radius = (int) sqrt( ((j-center_j) * (j-center_j)) + ((i-center_i) * (i-center_i)) );
 				if( point_radius > radius + padding) { //if we are outside the circular mask
-					*write_location = rgb_to_uint(127,127,127);
+					*write_location = rgb_to_uint(background,background,background);
 				}else if( point_radius <= radius) { //if we are inside the central radius
 					if(waveform==SQUARE) {
-						*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, 1);
+						*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, 1, contrast, background);
 					}else if(waveform==SINE) {
-						*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, 1);
+						*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, 1, contrast, background);
 					}
 				} else { //we must be in the padding region
 					double weight = (radius + padding - point_radius) / padding;
 					if(waveform==SQUARE) {
-						*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, weight);
+						*write_location = squarewave(j,i,t,wavelength,speed,angle,cosine,sine, weight, contrast, background);
 					}else if (waveform==SINE){
-						*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, weight);
+						*write_location = sinewave(j,i,t,wavelength,speed,angle,cosine,sine, weight, contrast, background);
 					}
 				}
+			} else { //we must be doing a gabor
+                                int point_radius = (int) sqrt( ((j-center_j) * (j-center_j)) + ((i-center_i) * (i-center_i)) );
+				double weight = gaussian(point_radius, sigma);
+	                        //you can't do a squarewave gabor. I do not permit such abominations.
+        	                *write_location = gabor(j,i,t,wavelength,speed,angle,cosine,sine, weight, contrast, background);
 			}
 			write_location++;
 		}
@@ -281,46 +358,44 @@ uint16_t * build_frame(int t, double angle, fb_config framebuffer, int wavelengt
 }
 
 
-
-
-
-int build_grating(char * filename, double angle, double sf, double tf, int width, int height, int waveform, int percent_diameter, int percent_center_left, int percent_center_top, int percent_padding, int verbose){
+int build_grating(char * filename, double duration, double angle, double sf, double tf, double contrast, int background, int width, int height, int waveform, double percent_sigma, double percent_diameter, double percent_center_left, double percent_center_top, double percent_padding){
+	int fps = get_refresh_rate();
+        printf("Refresh rate measured as: %d hz\n", fps);
 	fb_config fb0;
 	fb0.width = width;
 	fb0.height = height;
 	fb0.depth = 16;
 	fb0.size = (fb0.height)*(fb0.depth)*(fb0.width)/8;
 	FILE * file = fopen(filename, "wb");
-	if(file ==NULL){
+	if(file == NULL){
 		perror("File creation failed\n");
 		PyErr_SetString(PyExc_OSError,"File creation failed.");
 		return 1;
 	}
-	printf("Drawing grating %s\n", filename);
 	int wavelength = (fb0.width/DEGREES_SUBTENDED)/sf;
-	int speed = wavelength*tf/FPS;
+
+	int speed = wavelength*tf/fps;
 	if(speed==0){
 		speed = 1;
 	}
-	double actual_tf = ((double)(speed*FPS)) / wavelength;
-	int radius = fb0.width*(percent_diameter) / 200;
+	double actual_tf = ((double)(speed*fps)) / wavelength;
+	int sigma = fb0.width * percent_sigma / 100;
+	int radius = fb0.width * percent_diameter / 200;
 	int center_j = fb0.width * percent_center_left / 100;
 	int center_i = fb0.height * percent_center_top / 100;
 	double padding = radius * percent_padding / 100;
-	if(verbose&&actual_tf!=tf){
-		printf("Grating %s has a requested temporal frequency of %f,\n" 
-			"Actual temporal frequency will be %f (%f% requested)\n"
-			"To stop receving these warnings, set verbose arg to False.\n"
-			"(You might want to do this if you are building many gratings)\n",filename,tf,actual_tf,100*actual_tf/tf);
+	if(actual_tf!=tf){
+		printf("Grating %s has a requested temporal frequency of %f, actual temporal frequency will be %f\n",filename,tf,actual_tf);
 	}
 	//Calculate the minimum number of frames required for a full cycle
 	//(worst case is just FPS*DURATION) and write it, tf, and sf in a header.
 	fileheader_t header;
+	header.frames_per_second = fps;
 	header.frames_per_cycle = wavelength / gcd(wavelength,speed);
-	if(header.frames_per_cycle > FPS * DURATION) {
-		header.frames_per_cycle = FPS * DURATION;
+	if(header.frames_per_cycle > fps * duration) {
+		header.frames_per_cycle = fps * duration;
 	}
-	printf("Frame per cycle is %d\n",header.frames_per_cycle);
+	header.n_frames = fps * duration;
 	header.spacial_frequency = (uint16_t)(sf);
 	header.temporal_frequency = (uint16_t)(tf);
 	fwrite(&header,sizeof(fileheader_t),1,file);
@@ -328,10 +403,10 @@ int build_grating(char * filename, double angle, double sf, double tf, int width
 	struct timespec time1, time2;
 	time1 = get_current_time(&clock_status);
 	if(clock_status){
-			return -1;
+		return -1;
 	}
 	for (t=0;t<header.frames_per_cycle;t++){
-		uint16_t* frame = build_frame(t,angle,fb0,wavelength, speed, waveform, center_j, center_i, radius, padding);
+		uint16_t* frame = build_frame(t,angle,fb0,wavelength, speed, waveform, contrast, background, center_j, center_i, sigma, radius, padding);
 		fwrite(frame,sizeof(uint16_t),fb0.height*fb0.width,file);
 		free(frame);
 		if(t==4){
@@ -350,8 +425,8 @@ uint16_t* load_grating(char* filename, fb_config fb0){
 	int page_size = getpagesize();
 	int bytes_already_read = 0;
 	int read_size,frames;
-	int filedes;
-	filedes = open(filename, O_RDWR);
+
+	int filedes = open(filename, O_RDWR);
 	if(filedes == -1){
 		perror("Failed to open file");
 		return NULL;
@@ -364,6 +439,11 @@ uint16_t* load_grating(char* filename, fb_config fb0){
 		exit(1);
 	}
 	frames = header[0];
+	int file_fps = header[3];
+	int refresh_rate = get_refresh_rate();
+	if (refresh_rate != file_fps) {
+		printf("File generated at %d FPS, but monitor running at %d HZ. This will cause inaccurate timing", file_fps, refresh_rate);
+	}
 	int file_size = frames*fb0.size + sizeof(fileheader_t);
 	//clean up the header from the heap
 	munmap(header, 6);
@@ -443,7 +523,7 @@ int convert_raw(char* filename, char* new_filename, int n_frames, int width, int
 	header.n_frames = n_frames;
 	header.width = width;
 	header.height = height;
-	header.fps = fps;
+	header.frames_per_second = fps;
 	fwrite(&header, sizeof(fileheader_raw),1,new_file);
 
 	off_t len = lseek(fh, 0, SEEK_END);
@@ -501,7 +581,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 	__u32 dummy = 0;
 
 	int n_frames = header -> n_frames;
-	float raw_FPS = header -> fps;
+	float raw_FPS = header -> frames_per_second;
 
 	for (t = 0; t < n_frames; t++) {
 		frame_end = frame_start;
@@ -517,10 +597,8 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 			write_loc++;
 		}
 
-		flip_buffer(buffer, fb0);
 		ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
-
-		//usleep((int) ((1/raw_FPS)*1000000 - ADJUSTMENT));
+		flip_buffer(buffer, fb0);
 
 		if (t != 0) {
 			frame_duration = cmp_times(frame_end, frame_start);
@@ -573,7 +651,8 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 	struct timespec frame_start, frame_end;
 	__u32 dummy = 0;
 
-	for (t=0; t < FRAMES; t++){
+	int n_frames = header->n_frames;
+	for (t=0; t < n_frames; t++){
                 frame_end = frame_start;
                 frame_start = get_current_time(&clock_status);
 		if(clock_status) {
@@ -667,7 +746,6 @@ int is_current_resolution(int xres, int yres){
 
 fb_config init(int width, int height){
 	wiringPiSetup();
-
 
 	fb_config fb0;
 	//To determine original width and height
@@ -777,19 +855,18 @@ int close_display(fb_config fb0){
 
 static PyObject* py_buildgrating(PyObject *self, PyObject *args) {
     char* filename;
-    double angle, sf, tf;
-    int width, height, waveform, percent_diameter, percent_center_left,
-	percent_center_top, percent_padding, verbose;
-    if (!PyArg_ParseTuple(args, "sdddiiiiiiip", &filename, &angle,
-                          &sf, &tf, &width, &height, &waveform,
-                          &percent_diameter, &percent_center_left,
-			  &percent_center_top, &percent_padding,
-			  &verbose)){
+    double duration, angle, sf, tf, contrast, percent_sigma, percent_diameter,
+           percent_center_left, percent_center_top, percent_padding;
+    int width, height, waveform, background;
+    if (!PyArg_ParseTuple(args, "sdddddiiiiddddd", &filename, &duration, &angle,
+                          &sf, &tf, &contrast, &background, &width, &height, &waveform,
+                          &percent_sigma, &percent_diameter, &percent_center_left,
+			  &percent_center_top, &percent_padding)){
         return NULL;
     }
-    if(build_grating(filename,angle,sf,tf,width,height,waveform,
-			percent_diameter,percent_center_left,
-			percent_center_top,percent_padding,verbose)){
+    if(build_grating(filename,duration,angle,sf,tf,contrast,background,width,height,waveform,
+			percent_sigma, percent_diameter,percent_center_left,
+			percent_center_top, percent_padding)){
         return NULL;
     }
     Py_RETURN_NONE;
@@ -807,8 +884,7 @@ static PyObject* py_init(PyObject *self, PyObject *args) {
     if(fb0_pointer->error){
         return NULL;
     }
-    PyObject* fb0_capsule = PyCapsule_New(fb0_pointer,
-                                          "framebuffer",NULL);
+    PyObject* fb0_capsule = PyCapsule_New(fb0_pointer, "framebuffer",NULL);
     Py_INCREF(fb0_capsule);
     return fb0_capsule;
 }
@@ -844,18 +920,18 @@ static PyObject* py_loadgrating(PyObject* self, PyObject* args){
 }
 
 static PyObject* py_loadraw(PyObject* self, PyObject* args){
-	char* filename;
-	if (!PyArg_ParseTuple(args, "s", &filename)) {
-		return NULL;
-	}
-	uint16_t* raw_data = load_raw(filename);
-	if (raw_data == NULL) {
-		PyErr_SetString(PyExc_FileNotFoundError, "You probably mistyped the file name.	Though stranger things may have happened");
-		return NULL;
-	}
-	PyObject* raw_capsule = PyCapsule_New(raw_data, "raw_data", NULL);
-	Py_INCREF(raw_capsule);
-	return raw_capsule;
+    char* filename;
+    if (!PyArg_ParseTuple(args, "s", &filename)) {
+        return NULL;
+    }
+    uint16_t* raw_data = load_raw(filename);
+    if (raw_data == NULL) {
+        PyErr_SetString(PyExc_FileNotFoundError, "You probably mistyped the file name.	Though stranger things may have happened");
+        return NULL;
+    }
+    PyObject* raw_capsule = PyCapsule_New(raw_data, "raw_data", NULL);
+    Py_INCREF(raw_capsule);
+    return raw_capsule;
 }
 
 static PyObject* py_unloadgrating(PyObject* self, PyObject* args){
@@ -871,15 +947,15 @@ static PyObject* py_unloadgrating(PyObject* self, PyObject* args){
 }
 
 static PyObject* py_unloadraw(PyObject* self, PyObject* args) {
-	PyObject* raw_capsule;
-	void* raw_pointer;
-	if (!PyArg_ParseTuple(args, "O", &raw_capsule)) {
-		return NULL;
-	}
-	raw_pointer = PyCapsule_GetPointer(raw_capsule, "raw_data");
-	unload_raw(raw_pointer);
-	Py_DECREF(raw_capsule);
-	Py_RETURN_NONE;
+    PyObject* raw_capsule;
+    void* raw_pointer;
+    if (!PyArg_ParseTuple(args, "O", &raw_capsule)) {
+        return NULL;
+    }
+    raw_pointer = PyCapsule_GetPointer(raw_capsule, "raw_data");
+    unload_raw(raw_pointer);
+    Py_DECREF(raw_capsule);
+    Py_RETURN_NONE;
 }
 
 static PyObject* py_displaygrating(PyObject* self, PyObject* args){
@@ -907,27 +983,27 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
 }
 
 static PyObject* py_displayraw(PyObject* self, PyObject* args){
-	PyObject* fb0_capsule;
-	PyObject* raw_capsule;
-	int trig_pin;
-	if (!PyArg_ParseTuple(args, "OOi", &fb0_capsule, &raw_capsule, &trig_pin)) {
-		return NULL;
-	}
-	fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule, "framebuffer");
-	uint16_t* raw_data = PyCapsule_GetPointer(raw_capsule, "raw_data");
-        if(raw_data == NULL){
-                return NULL;
-	}
-	int start_time = time(NULL);
-	long* raw_info = display_raw(raw_data, *fb0_pointer, trig_pin);
-	if (raw_info == 0) {
-		free(raw_info);
-		Py_RETURN_NONE;
-	} else {
-		PyObject* return_tuple = Py_BuildValue("(lli)", *raw_info, *(raw_info+1), start_time);
-		free(raw_info);
-		return return_tuple;
-	}
+    PyObject* fb0_capsule;
+    PyObject* raw_capsule;
+    int trig_pin;
+    if (!PyArg_ParseTuple(args, "OOi", &fb0_capsule, &raw_capsule, &trig_pin)) {
+        return NULL;
+    }
+    fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule, "framebuffer");
+    uint16_t* raw_data = PyCapsule_GetPointer(raw_capsule, "raw_data");
+    if(raw_data == NULL){
+        return NULL;
+    }
+    int start_time = time(NULL);
+    long* raw_info = display_raw(raw_data, *fb0_pointer, trig_pin);
+    if (raw_info == 0) {
+        free(raw_info);
+        Py_RETURN_NONE;
+    } else {
+        PyObject* return_tuple = Py_BuildValue("(lli)", *raw_info, *(raw_info+1), start_time);
+        free(raw_info);
+        return return_tuple;
+    }
 }
 
 static PyObject* py_closedisplay(PyObject* self, PyObject* args){

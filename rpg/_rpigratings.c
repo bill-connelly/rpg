@@ -56,7 +56,7 @@ typedef struct {
 	// variables are 4 bytes long
 	long int width;
 	long int height;
-	long int frames_per_second;
+	long int refresh_per_frame;
 	long int n_frames;
 } fileheader_raw;
 
@@ -505,7 +505,7 @@ uint16_t* load_raw(char* filename) {
 	return frame_data;
 }
 
-int convert_raw(char* filename, char* new_filename, int n_frames, int width, int height, float fps) {
+int convert_raw(char* filename, char* new_filename, int n_frames, int width, int height, int refresh_per_frame) {
 
 	int fh = open(filename, O_RDWR);
 	if (fh == -1) {
@@ -523,7 +523,7 @@ int convert_raw(char* filename, char* new_filename, int n_frames, int width, int
 	header.n_frames = n_frames;
 	header.width = width;
 	header.height = height;
-	header.frames_per_second = fps;
+	header.refresh_per_frame = refresh_per_frame;
 	fwrite(&header, sizeof(fileheader_raw),1,new_file);
 
 	off_t len = lseek(fh, 0, SEEK_END);
@@ -570,7 +570,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 	frame_data += sizeof(fileheader_raw)/sizeof(float);
 
 	uint16_t *write_loc;
-	int t, buffer, pixel, frame, clock_status;
+	int t, buffer, pixel, frame, clock_status, waits;
 	long frame_duration;
 	write_loc = fb0.map + fb0.size/2;
 	long *fastest_frame = malloc(2*sizeof(long));
@@ -581,7 +581,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 	__u32 dummy = 0;
 
 	int n_frames = header -> n_frames;
-	float raw_FPS = header -> frames_per_second;
+	int refresh_per_frame = header -> refresh_per_frame;
 
 	for (t = 0; t < n_frames; t++) {
 		frame_end = frame_start;
@@ -597,12 +597,13 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 			write_loc++;
 		}
 
-		ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
+                for (waits = 0; waits < refresh_per_frame; waits++) {
+		    ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
+                }
 		flip_buffer(buffer, fb0);
 
 		if (t != 0) {
 			frame_duration = cmp_times(frame_end, frame_start);
-			printf("Frame duration is %f, \t Goal is %f \n", ((float)frame_duration)/1000, (1/raw_FPS)*1000); 
 			if(time>(*slowest_frame)) {
 				*slowest_frame = frame_duration;
 			}
@@ -1022,13 +1023,12 @@ static PyObject* py_closedisplay(PyObject* self, PyObject* args){
 
 static PyObject* py_convertraw(PyObject* self, PyObject* args){
 	char *filename, *new_filename;
-	int n_frames, width, height;
-	float fps;
-	if (!PyArg_ParseTuple(args, "ssiiif", &filename, &new_filename,
-				&n_frames, &width, &height, &fps)) {
+	int n_frames, width, height, refresh_per_frame;
+	if (!PyArg_ParseTuple(args, "ssiiii", &filename, &new_filename,
+				&n_frames, &width, &height, &refresh_per_frame)) {
 		return NULL;
 	}
-	if(convert_raw(filename, new_filename, n_frames, width, height, fps)) {
+	if(convert_raw(filename, new_filename, n_frames, width, height, refresh_per_frame)) {
 		return NULL;
 	}
 	Py_RETURN_NONE;

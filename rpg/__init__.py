@@ -19,7 +19,6 @@ from collections import namedtuple
 
 GratPerfRec = namedtuple("GratingPerformanceRecord",["fastest_frame","slowest_frame","start_time"])
 
-
 GRAY = 127
 BLACK = 0
 WHITE = 255
@@ -28,11 +27,82 @@ SQUARE = 0
 
 import _rpigratings as rpigratings
 
-def build_grating(filename, duration, angle, spac_freq, temp_freq,
-                  contrast = 1, background = 127, resolution = (1280,720),
-                  waveform = SINE, percent_sigma = 0, percent_diameter = 0,
-                  percent_center_left = 50, percent_center_top = 50,
-                  percent_padding = 0):
+def _parse_options(options):
+    """
+    An internal function for testing if options have been
+    set correctly, and setting default options if none
+    have been provided.
+
+    Args: 
+      options: A dictionary containing options.
+
+    """
+    op = options.copy()
+    if "duration" in op:
+        if op["duration"] <= 0:
+            raise ValueError("options['duration'] option set to invalid value of %d, must be >0" %op["duration"])
+    else:
+        raise ValueError("Provide options['duration'] in option dictionary")
+
+    if "angle" not in op:
+        raise ValueError("Provide options['angle'] in options dictionary")
+
+    if "spac_freq" in op:
+        if op["spac_freq"] <= 0:
+            raise ValueError("options['spac_freq'] set to invalid value of %d, must be > 0" %op["spac_freq"])
+    else:
+        raise ValueError("Provide options['space_freq'] in options dictionary")
+
+    if "temp_freq" in op:
+        if op["temp_freq"] < 0:
+            raise ValueError("options['temp_freq'] set to invalid value of %d, must be >= 0" %op["temp_freq"])
+    else:
+        raise ValueError("Provide options['temp_freq'] in options dictionary")
+
+    if "contrast" in op:
+        if op["contrast"] < 0 or op["contrast"] > 1:
+            raise ValueError("options['contrast'] set to invalid value of %d, must be set between 0 and 1 or not set" %op["contrast"])
+    else:
+        op["contrast"] = 1
+
+    if "background" in op:
+        if op["background"] < 0 or op["background"] > 255:
+            raise ValueError("options['background'] set to invalid value of %d, must be set between 0 and 255 or not set" %op["contrast"])
+    else:
+        op["background"] = 127
+
+    if "resolution" not in op:
+        op["resolution"] = (1280, 720)
+
+    if "waveform" not in op:
+        op["waveform"] = SINE
+
+    if "percent_sigma" in op:
+        if op["percent_sigma"] <= 0:
+            raise ValueError("options['percent_sigma'] set to invalid value of %d, must be set > 0 or not set" %op["percent_sigma"])
+    else:
+        op["percent_sigma"] = 0
+
+    if "percent_diameter" in op:
+        if op["percent_diameter"] <= 0:
+            raise ValueError("options['percent_diameter'] set to invalid value of %d, must be set > 0 or not set" %op["percent_diameter"])
+    else:
+        op["percent_diameter"] = 0
+
+    if "percent_center_left" not in op:
+        op["percent_center_left"] = 50
+
+    if "percent_center_top" not in op:
+        op["percent_center_top"] = 50
+
+    if "percent_padding" in op:
+        if op["percent_padding"] <= 0:
+            raise ValueError("options['percent_padding'] set to invalid value of %d, must be set > 0 or not set" %op["percent_padding"])
+
+    return op
+
+def build_grating(filename, options):
+
     """
     Create a raw animation file of a drifting grating. Saves file to hard disc.
     This file is then loaded with Screen.load_grating, and displayed with one
@@ -42,35 +112,20 @@ def build_grating(filename, duration, angle, spac_freq, temp_freq,
       filename: The filename and path to file. ~/dir/filename will
         generate a file called filename in a directory dir in the users
         home directory.
-      duration: Gratings duration in seconds.
-      spac_freq: Spacial frequency of the grating is in cycles per degree of
-        visual angle.
-      temp_freq: Temporal frequency in cycles per second.
-      angle: The grating's angle of propogation, measured counterclockwise
-        from the x-axis, e.g. 0 has vertical gratings moving horiztonally to
-        the left.
-      resolution: Formatted as (width, height) and must match the resolution
-        of any Screen object used to display the grating.
-      waveform: can be 0 for a squarewave, or 1 for a sinewave. Constants 
-        SQUARE and SINE are available for this purpose.
-      background: value between 0 (black) and 255 (white) used for the background
-        used when contrast < 1, when percent sigma > 0 or percent_diameter > 0
-      contrast: value between 0 and 1, for the contrast 
-      percent_sigma: determines the percentage of the screen width that the
-        gaussian envelope of gabor waveform uses as sigma. Setting to 0 produces
-        either full screen gratings, or gratings with a circular mask
-      percent_diameter: How much of the screen should be filled by the grating
-        and how much by midgray. Setting to 0 produces either full screen
-        gratings or a gabor grating.
-      percent_center_left: The center of the grating from the left edge of
-        screen. Only has an effect if the grating is not full screen, i.e.
-        percent_diameter > 0. 50 produces a horizontally centered grating.
-      percent_center_top: The center of the grating from the top edge of the
-        screen. Only has an effect if the grating is not full screen, i.e.
-        percent_diameter > 0. 50 produces a vertically centered grating.
-      percent_padding: the % of the radius used to fade the grating towards
-        midgray. Setting to 0 produces a hard edged circular grating. Only has
-        an effect if percent_diameter > 0.
+      options: A dictionary with the required keys of, duration, angle,
+        spac_freq, and temp_freq, which can be created as follows:
+        options = {
+          "duration": 2,     #2 second long grating
+          "angle": 90,       #90 degree gratings,
+          "spac_freq": 0.1,  #spatial frequency in cycles per degree
+          "temp_freq": 0.5,  #temporal frequency in cycles per second
+        }
+        optional options are:
+          "contrast": 1      #maximum contrast
+
+          "background": 127,   #
+          "resolution": (1280, 720)   #resolution of gratings. Must match Screen()
+          "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
 
     For smooth propogation of the grating, the pixels-per-frame speed
     is truncated to the nearest interger; low resolutions combined with
@@ -78,64 +133,156 @@ def build_grating(filename, duration, angle, spac_freq, temp_freq,
     speeds of propogation or even static, unmoving gratings. This also means
     that the temp_freq is approximate only.
     """
-    if percent_diameter < 0:
-        raise ValueError("percent_diameter param set to invalid value of %d, must be in [0,100]"
-                         %percent_diameter)
-    if percent_sigma < 0:
-        raise ValueError("percent_sigma param set to invalid value of %d, must be in [0,100]"
-                         %percent_sigma)
 
-    if background < 0 or background > 255:
-        raise ValueError("background param set to invalid value of %d, must be in [0,255]"
-                         %background)
-
-    if contrast < 0 or contrast > 1:
-        raise ValueError("contrast param set to invalid value of %d, must be in [0,1]"
-                         %contrast)
+    options = _parse_options(options)
 
     filename = os.path.expanduser(filename)
-    rpigratings.build_grating(filename,duration,angle,spac_freq,temp_freq,
-                     contrast, background, resolution[0], resolution[1],
-                     waveform, percent_sigma, percent_diameter, percent_center_left,
-                     percent_center_top, percent_padding)
+    rpigratings.build_grating(filename, options["duration"], options["angle"],
+                              options["spac_freq"], options["temp_freq"],
+                              options["contrast"], options["background"],
+                              options["resolution"][0], options["resolution"][1],
+                              options["waveform"], 0, 0, 0, 0, 0)
+
+def build_masked_grating(filename, options):
+    """
+    Create a raw animation file of a drifting grating with a circular mask.
+    Saves file to hard disc. This file is then loaded with Screen.load_grating,
+    and displayed with one    of the Screen methods.
+
+    Args:
+      filename: The filename and path to file. ~/dir/filename will
+        generate a file called filename in a directory dir in the users
+        home directory.
+      options: A dictionary with the required keys of: duration, angle,
+        spac_freq and temp_freq. The user will also want to set the keys
+        of percent_diameter, percent_center_top, percent_center_left
+        and percent_padding which can be created as follows:
+        options = {
+          "duration": 2,     #2 second long grating
+          "angle": 90,       #90 degree gratings,
+          "spac_freq": 0.1,  #spatial frequency in cycles per degree
+          "temp_freq": 0.5,  #temporal frequency in cycles per second
+          "percent_diameter": 50,    #diameter of mask as percentage of screen width
+          "percent_center_left": 50, #horizontal center of mask as percentage of screen width
+          "percent_ceter_top": 50,   #vertical center of mask as percentage of screen height
+          "percent_padding", 10      #specify whether the edge of mask blurs to background value over what distance
+        }
+        optional options are:
+          "contrast": 1,     #maximum contrast
+          "background": 127,   #
+          "resolution": (1280, 720)   #resolution of gratings. Must match Screen()
+          "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
+    """
+
+    options = _parse_options(options)
+
+    filename = os.path.expanduser(filename)
+    rpigratings.build_grating(filename, options["duration"], options["angle"],
+                              options["spac_freq"], options["temp_freq"],
+                              options["contrast"], options["background"],
+                              options["resolution"][0], options["resolution"][1],
+                              options["waveform"], 0, options["percent_diameter"],
+                              options["percent_center_left"], options["percent_center_top"],
+                              options["percent_padding"])
+
+def build_gabor(filename, options):
+    """
+    Create a raw animation file of a drifting gabor patch. Saves file to hard disc.
+    This file is then loaded with Screen.load_grating, and displayed with one
+    of the Screen methods.
+
+    Args:
+      filename: The filename and path to file. ~/dir/filename will
+        generate a file called filename in a directory dir in the users
+        home directory.
+      options: A dictionary with the required keys of: duration, angle,
+        spac_freq, and temp_freq. The user will also want to set the keys of
+        sigma, percent_center_top, percent_center_left and percent_padding
+        which can be created as follows:
+        options = {
+          "duration": 2,     #2 second long grating
+          "angle": 90,       #90 degree gratings,
+          "spac_freq": 0.1,  #spatial frequency in cycles per degree
+          "temp_freq": 0.5,  #temporal frequency in cycles per second
+          "percent_sigma": 10,       #'standard deviation' of the gaussian envelope of the gabor function
+                                     #as a percentage of screen width
+          "percent_center_left": 50, #horizontal center of mask as percentage of screen width
+          "percent_ceter_top": 50,   #vertical center of mask as percentage of screen height
+        }
+        optional options are:
+          "contrast": 1,     #maximum contrast
+          "background": 127,   #
+          "resolution": (1280, 720)   #resolution of gratings. Must match Screen()
+          "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
+    """
+    options = _parse_options(options)
+
+    filename = os.path.expanduser(filename)
+    rpigratings.build_grating(filename, options["duration"], options["angle"],
+                              options["spac_freq"], options["temp_freq"],
+                              options["contrast"], options["background"],
+                              options["resolution"][0], options["resolution"][1],
+                              options["waveform"], options["percent_sigma"], 0,
+                              options["percent_center_left"], options["percent_center_top"],
+                              0)
 
 
-def build_list_of_gratings(list_of_angles, path_to_directory, duration, spac_freq,
-			   temp_freq, contrast = 1, background = 127,
-                           resolution = (1280,720), waveform = SINE,
-                           percent_sigma = 0, percent_diameter = 0,
-                           percent_center_left = 0, percent_center_top = 0,
-                           percent_padding = 0):
+
+def build_list_of_gratings(func_string, directory_path, options):
 
 	"""
-	Builds a list of gratings with the same properties but varied angles
+	Builds a range of gratings varying over one property. One of the options
+        supplied can be a list, and the function will iterate over that list building
+        gratings matching each element of this list
 
         Args:
-          list_of_angles: a list containing the angles of the sine waves wanted.
-            Also the filename for each grating video. e.g. [0 90] will produce
-            two gratings, at 0 and 90 degrees, called saved with file names of 0
-            and 90 respectively.
-          path_to_directory: An absolute or relative path to the directory where
+          func_string: String matching either "grating", "mask" or "gabor", to produce
+            full screen gratings, gratings with a circular mask, or gabors, respectively
+          directory_path: An absolute or relative path to the directory where
             where the above files will be saved. Most likely, each set of gratings
             generated with this function will be saved in their own directory so
             can be displayed with the Screen.display_rand_grating_on_pulse()
-          See build_grating() for other arguments
+          options: A dictionary containing options, see build_grating(),
+            build_masked_grating() or build_gabor() for appropriate options, but note
+            one of the options must be in the form of a list.
 
+        Files will be saved with names matching the element of the list they are generated
+        from. e.g. if generated with options["angle"] = [0 45 90], then there will be three
+        files generated with names "0", "45" and "90" in the directory specificied in 
+        directory path.
 	"""
 
-	if len(list_of_angles) != len(set(list_of_angles)):
-		raise ValueError("list_of_angles must not contain duplicate elements")
-
+	if func_string == "grating":
+		func = build_grating
+	elif func_string == "mask":
+		func = build_masked_grating
+	elif func_string == "gabor":
+		func = build_gabor
+	else:
+		raise ValueError("func_string must be either 'grating', 'mask' or 'gabor', not %s" %func_string)
 
 	path_to_directory = os.path.expanduser(path_to_directory)
 	cwd = os.getcwd()
 	os.makedirs(path_to_directory)
 	os.chdir(path_to_directory)
-	for angle in list_of_angles:
-		build_grating(str(angle), duration, spac_freq, temp_freq, angle,
-                              resolution, waveform, background, contrast,
-                              percent_sigma, percent_diameter, percent_center_left,
-                              percent_center_top, percent_padding)
+
+
+	iterable = [];
+	for key, value in options.items():
+		if isinstance(value, list):
+			iterable.append(key)
+
+	if len(iterable) > 1:
+		raise ValueError("Supply only a single list as an option, rather than %s" %iterable)
+
+	if len(iterable) == 0:
+		raise ValueError("Supply one option as a list")
+
+	for val in options[iterable[0]]:
+		options_copy = options
+		options_copy[iterable[0]] = val
+		func(str(val), options)
+
 	os.chdir(cwd)
 
 def convert_raw(filename, new_filename, n_frames, width, height, fps):

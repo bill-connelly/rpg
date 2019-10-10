@@ -25,7 +25,6 @@
 #define SQUARE 0
 
 
-
 #define DEGREES_SUBTENDED 80 //The degrees of visual angle
 			     // subtended by the screen
 
@@ -148,6 +147,18 @@ float mean_long(long a[], int  n) {
 	return ((float) sum)/n;
 }
 
+float std_long(long a[], int n) {
+	float mean = mean_long(a, n);
+	float error_sum = 0;
+	float error;
+	int i;
+	for (i = 0; i < n; i++) {
+		error = mean - a[i];
+		error_sum += error * error;
+	}
+	return  (float) sqrt(error_sum/n);
+}
+
 int get_refresh_rate(void) {
 	int fb = open("/dev/fb0",O_RDWR);
 	int n_reps = 11;
@@ -186,7 +197,7 @@ void flip_buffer(int buffer_num, fb_config fb0){
 	/* Flip the front- and back-buffers in the double-buffering
 	system */
 
-	int fd = open("/dev/vcio",0);
+	int fd = open("/dev/vcio",O_RDWR|O_SYNC);
 	if(fd == -1){
 		perror("VCIO OPEN ERROR: ");
 		return 1;
@@ -442,7 +453,7 @@ uint16_t* load_grating(char* filename, fb_config fb0){
 	int file_fps = header[3];
 	int refresh_rate = get_refresh_rate();
 	if (refresh_rate != file_fps) {
-		printf("File generated at %d FPS, but monitor running at %d HZ. This will cause inaccurate timing", file_fps, refresh_rate);
+		printf("File generated at %d FPS, but monitor running at %d HZ. This will cause inaccurate timing \n", file_fps, refresh_rate);
 	}
 	int file_size = frames*fb0.size + sizeof(fileheader_t);
 	//clean up the header from the heap
@@ -571,18 +582,15 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 
 	uint16_t *write_loc;
 	int t, buffer, pixel, frame, clock_status, waits;
-	long frame_duration;
 	write_loc = fb0.map + fb0.size/2;
-	long *fastest_frame = malloc(2*sizeof(long));
-	long *slowest_frame = fastest_frame+1;
-	*slowest_frame = 0;
-	*fastest_frame = 1000000;
+	float *frame_duration_mean = malloc(2*sizeof(float));
+	float *frame_duration_std = frame_duration_mean+1;
 	struct timespec frame_start, frame_end;
 	__u32 dummy = 0;
 
 	int n_frames = header -> n_frames;
 	int refresh_per_frame = header -> refresh_per_frame;
-
+        long timings[n_frames-1];
 	for (t = 0; t < n_frames; t++) {
 		frame_end = frame_start;
 		frame_start = get_current_time(&clock_status);
@@ -591,38 +599,41 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 		}
 
 		frame = t;
-		buffer = t%2;
+		buffer = (t+1)%2;
+		printf("Writing a frame then flipping to buffer %d and printing frame %d \n",buffer, t);
 		for(pixel = 0; pixel < fb0.size/2; pixel++) {
 			*write_loc = frame_data[(frame*fb0.size/2)+pixel];
 			write_loc++;
 		}
-
-                for (waits = 0; waits < refresh_per_frame; waits++) {
-		    ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
-                }
-		flip_buffer(buffer, fb0);
-
-		if (t != 0) {
-			frame_duration = cmp_times(frame_end, frame_start);
-			if(time>(*slowest_frame)) {
-				*slowest_frame = frame_duration;
+		if (t == 0) {
+			ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
+			flip_buffer(buffer, fb0);
+		} else {
+			for (waits = 0; waits < refresh_per_frame; waits++) {
+				ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
 			}
-			if(time<(*fastest_frame)){
-				*fastest_frame = frame_duration;
+			flip_buffer(buffer, fb0);
+		}
+		if (t == n_frames-1) {
+			for (waits = 0; waits < refresh_per_frame; waits++) {
+				ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
 			}
 		}
-		if(buffer) {
+		if (t != 0) {
+			timings[t-1] = cmp_times(frame_end, frame_start);
+		}
+		if(!buffer) {
 			write_loc = fb0.map + fb0.size/2;
 			digitalWrite(1, HIGH);
 		} else {
 			write_loc = fb0.map;
 			digitalWrite(1, LOW);
-
 		}
+		printf("Moving write location to buffer %d\n",!buffer);
 	}
-	*fastest_frame = 1000000/(*fastest_frame);
-	*slowest_frame = 1000000/(*slowest_frame);
-	return fastest_frame;
+	*frame_duration_mean = mean_long(timings, n_frames-1);
+	*frame_duration_std = std_long(timings, n_frames-1);
+	return frame_duration_mean;
 }
 
 double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
@@ -643,16 +654,14 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 
 	uint16_t *write_loc;
 	int t, buffer, pixel, frame, clock_status;
-	long frame_duration;
 	write_loc = fb0.map + fb0.size/2;
-	long* fastest_frame = malloc(2*sizeof(long));
-	long* slowest_frame = fastest_frame+1;
-	*slowest_frame  = 0;
-	*fastest_frame = 1000000;
+	float* frame_duration_mean = malloc(2*sizeof(float));
+	float* frame_duration_std = frame_duration_mean+1;
 	struct timespec frame_start, frame_end;
 	__u32 dummy = 0;
 
 	int n_frames = header->n_frames;
+	long timings[n_frames-1];
 	for (t=0; t < n_frames; t++){
                 frame_end = frame_start;
                 frame_start = get_current_time(&clock_status);
@@ -671,13 +680,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 		ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
 
 		if (t != 0) {
-			frame_duration = cmp_times(frame_end, frame_start);
-			if(frame_duration > (*slowest_frame)){
-				*slowest_frame = frame_duration;
-			}
-               		if(frame_duration < (*fastest_frame)){
-				*fastest_frame = frame_duration;
-			}
+			timings[t-1] = cmp_times(frame_end, frame_start);
 		}
 
 		if(buffer){
@@ -688,9 +691,9 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 			digitalWrite(1, HIGH);
 		}
 	}
-	*fastest_frame = 1000000 /(*fastest_frame);
-	*slowest_frame = 1000000 /(*slowest_frame);
-	return fastest_frame;
+	*frame_duration_mean = mean_long(timings, n_frames-1);
+	*frame_duration_std = std_long(timings, n_frames-1);
+	return frame_duration_mean;
 }
 
 int unload_grating(uint16_t* frame_data){
@@ -912,7 +915,7 @@ static PyObject* py_loadgrating(PyObject* self, PyObject* args){
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
     uint16_t* grating_data = load_grating(filename,*fb0_pointer);
     if (grating_data == NULL) {
-        PyErr_SetString(PyExc_FileNotFoundError, "You probably mistyped the file name.	Though stranger things may have happened");
+        PyErr_Format(PyExc_FileNotFoundError, "You probably mistyped the file name. Parsed as %s", filename);
  	return NULL;
     }
     PyObject* grating_capsule = PyCapsule_New(grating_data, "grating_data",NULL);
@@ -927,7 +930,7 @@ static PyObject* py_loadraw(PyObject* self, PyObject* args){
     }
     uint16_t* raw_data = load_raw(filename);
     if (raw_data == NULL) {
-        PyErr_SetString(PyExc_FileNotFoundError, "You probably mistyped the file name.	Though stranger things may have happened");
+        PyErr_Format(PyExc_FileNotFoundError, "You probably mistyped the file name. Parsed as %s", filename);
         return NULL;
     }
     PyObject* raw_capsule = PyCapsule_New(raw_data, "raw_data", NULL);
@@ -972,12 +975,12 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
         return NULL;
     }
     int start_time = time(NULL);
-    long* grat_info = display_grating(grating_data,*fb0_pointer,trig_pin);
+    float* grat_info = display_grating(grating_data,*fb0_pointer,trig_pin);
     if (grat_info == 0) {
         free(grat_info);
         Py_RETURN_NONE;
     } else {
-        PyObject* return_tuple = Py_BuildValue("(lli)",*grat_info,*(grat_info+1),start_time);
+        PyObject* return_tuple = Py_BuildValue("(ddi)",*grat_info,*(grat_info+1),start_time);
         free(grat_info);
         return return_tuple;
     }
@@ -996,12 +999,12 @@ static PyObject* py_displayraw(PyObject* self, PyObject* args){
         return NULL;
     }
     int start_time = time(NULL);
-    long* raw_info = display_raw(raw_data, *fb0_pointer, trig_pin);
+    float* raw_info = display_raw(raw_data, *fb0_pointer, trig_pin);
     if (raw_info == 0) {
         free(raw_info);
         Py_RETURN_NONE;
     } else {
-        PyObject* return_tuple = Py_BuildValue("(lli)", *raw_info, *(raw_info+1), start_time);
+        PyObject* return_tuple = Py_BuildValue("(ddi)", *raw_info, *(raw_info+1), start_time);
         free(raw_info);
         return return_tuple;
     }

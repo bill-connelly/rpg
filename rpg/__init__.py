@@ -14,10 +14,12 @@ performance.
 
 """
 import time as t
-import os, sys, random
+import os
+import sys
+import hashlib
 from collections import namedtuple
 
-GratPerfRec = namedtuple("GratingPerformanceRecord",["fastest_frame","slowest_frame","start_time"])
+GratPerfRec = namedtuple("GratingPerformanceRecord",["mean_interframe","stddev_interframe","start_time"])
 
 GRAY = 127
 BLACK = 0
@@ -36,6 +38,8 @@ def _parse_options(options):
     Args: 
       options: A dictionary containing options.
 
+    Returns:
+      Parsed option dictionary suitable for passing to other functions
     """
     op = options.copy()
     if "duration" in op:
@@ -98,6 +102,8 @@ def _parse_options(options):
     if "percent_padding" in op:
         if op["percent_padding"] <= 0:
             raise ValueError("options['percent_padding'] set to invalid value of %d, must be set > 0 or not set" %op["percent_padding"])
+    else:
+        op["percent_padding"] = 0
 
     return op
 
@@ -132,6 +138,9 @@ def build_grating(filename, options):
     a low temporal frequency:spacial frequency ratio may result in incorrect
     speeds of propogation or even static, unmoving gratings. This also means
     that the temp_freq is approximate only.
+
+    Returns:
+      Nothing
     """
 
     options = _parse_options(options)
@@ -172,6 +181,9 @@ def build_masked_grating(filename, options):
           "background": 127,   #
           "resolution": (1280, 720)   #resolution of gratings. Must match Screen()
           "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
+
+    Returns:
+      Nothing.
     """
 
     options = _parse_options(options)
@@ -214,6 +226,9 @@ def build_gabor(filename, options):
           "background": 127,   #
           "resolution": (1280, 720)   #resolution of gratings. Must match Screen()
           "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
+
+    Returns:
+      Nothing.
     """
     options = _parse_options(options)
 
@@ -230,65 +245,90 @@ def build_gabor(filename, options):
 
 def build_list_of_gratings(func_string, directory_path, options):
 
-	"""
-	Builds a range of gratings varying over one property. One of the options
-        supplied can be a list, and the function will iterate over that list building
-        gratings matching each element of this list
+    """
+    Builds a range of gratings varying over one property. One of the options
+    supplied can be a list, and the function will iterate over that list building
+    gratings matching each element of this list
 
-        Args:
-          func_string: String matching either "grating", "mask" or "gabor", to produce
-            full screen gratings, gratings with a circular mask, or gabors, respectively
-          directory_path: An absolute or relative path to the directory where
-            where the above files will be saved. Most likely, each set of gratings
-            generated with this function will be saved in their own directory so
-            can be displayed with the Screen.display_rand_grating_on_pulse()
-          options: A dictionary containing options, see build_grating(),
-            build_masked_grating() or build_gabor() for appropriate options, but note
-            one of the options must be in the form of a list.
+    Args:
+      func_string: String matching either "grating", "mask" or "gabor", to produce
+        full screen gratings, gratings with a circular mask, or gabors, respectively
+      directory_path: An absolute or relative path to the directory where
+        where the above files will be saved. Most likely, each set of gratings
+        generated with this function will be saved in their own directory so
+        can be displayed with the Screen.display_rand_grating_on_pulse()
+      options: A dictionary containing options, see build_grating(),
+        build_masked_grating() or build_gabor() for appropriate options, but note
+        one of the options must be in the form of a list.
 
-        Files will be saved with names matching the element of the list they are generated
-        from. e.g. if generated with options["angle"] = [0 45 90], then there will be three
-        files generated with names "0", "45" and "90" in the directory specificied in 
-        directory path.
-	"""
+    Files will be saved with names matching the element of the list they are generated
+    from. e.g. if generated with options["angle"] = [0 45 90], then there will be three
+    files generated with names "0", "45" and "90" in the directory specificied in 
+    directory path.
 
-	if func_string == "grating":
-		func = build_grating
-	elif func_string == "mask":
-		func = build_masked_grating
-	elif func_string == "gabor":
-		func = build_gabor
-	else:
-		raise ValueError("func_string must be either 'grating', 'mask' or 'gabor', not %s" %func_string)
+    Returns:
+      Nothing
+    """
 
-	path_to_directory = os.path.expanduser(path_to_directory)
-	cwd = os.getcwd()
-	os.makedirs(path_to_directory)
-	os.chdir(path_to_directory)
+    if func_string == "grating":
+        func = build_grating
+    elif func_string == "mask":
+        func = build_masked_grating
+    elif func_string == "gabor":
+        func = build_gabor
+    else:
+        raise ValueError("func_string must be either 'grating', 'mask' or 'gabor', not %s" %func_string)
 
+    path_to_directory = os.path.expanduser(directory_path)
+    cwd = os.getcwd()
+    os.makedirs(path_to_directory)
+    os.chdir(path_to_directory)
 
-	iterable = [];
-	for key, value in options.items():
-		if isinstance(value, list):
-			iterable.append(key)
+    iterable = [];
+    for key, value in options.items():
+        if isinstance(value, list):
+            iterable.append(key)
 
-	if len(iterable) > 1:
-		raise ValueError("Supply only a single list as an option, rather than %s" %iterable)
+    if len(iterable) > 1:
+        raise ValueError("Supply only a single list as an option, rather than %s" %iterable)
 
-	if len(iterable) == 0:
-		raise ValueError("Supply one option as a list")
+    if len(iterable) == 0:
+        raise ValueError("Supply one option as a list")
 
-	for val in options[iterable[0]]:
-		options_copy = options
-		options_copy[iterable[0]] = val
-		func(str(val), options)
+    for val in options[iterable[0]]:
+        options_copy = options.copy()
+        options_copy[iterable[0]] = val
+        func(str(val), options_copy)
 
-	os.chdir(cwd)
+    os.chdir(cwd)
 
-def convert_raw(filename, new_filename, n_frames, width, height, fps):
-	filename = os.path.expanduser(filename)
-	new_filename = os.path.expanduser(new_filename)
-	rpigratings.convertraw(filename, new_filename, n_frames, width, height, fps)
+def convert_raw(filename, new_filename, n_frames, width, height, refreshes_per_frame):
+    """
+    Converts a raw video/image file saves as uint8: RGBRGBRGB... starting
+      in the top left pixel and proceeding rowwise, into a form readily 
+      displayed by RPG.
+
+    Args:
+      filename: the exact path to the raw file, either as relative or absolute
+        e.g. "~/videos/raw1.raw".
+      new_filename: the exact path of the converted file to be produced e.g.
+        "~/raws/raw1.raw".
+      n_frames: the number of frames in the raw video/image
+      width: the width of the original file in pixels
+      height: the height of the original file in pixels
+      refreshes_per_frame: the number of monitor refreshes to display each frame for.
+        For a movie to display at 30 frames per second, on a 60 Hz monitor, this would
+        be 2. On a 75 Hz monitor, 25 frames per second would be acheived by setting this
+        to 3. If a still image is displayed, if you require it displayed for X seconds,
+        and your monitor refresh rate is R Hz, then this value should be set to X * R.
+
+    Returns:
+      None
+    """
+
+    filename = os.path.expanduser(filename)
+    new_filename = os.path.expanduser(new_filename)
+    rpigratings.convertraw(filename, new_filename, n_frames, width, height, refreshes_per_frame)
 
 
 class Screen:
@@ -314,9 +354,10 @@ class Screen:
           if the animation is larger then attempting to play it will cause a
           segmentation fault.
 
-        :param resolution: a tuple of the desired width of the display
-          resolution as (width, height). Defaults to (1280,720).
-        background, value between 
+        Args:
+          resolution: a tuple of the desired width of the display
+            resolution as (width, height). Defaults to (1280,720).
+          background: value between0 and 255 for the background 
          """
         if (background < 0 or background > 255):
                 raise ValueError("Background must be between 0 and 255")
@@ -327,14 +368,27 @@ class Screen:
 
     def load_grating(self,filename):
         """
-        Load a raw grating file called filename into local memory. Once loaded
+        Load a grating file called filename into local memory. Once loaded
         in this way, display_grating() can be called to display the loaded file
         to the screen.
+
+        Args:
+          filename: string containing the exact filename, either as an absolute
+            or relative, e.g. "~/gratings/grat1.dat" or "home/pi/grating/grat1.dat"
         """
         filename = os.path.expanduser(filename)
         return Grating(self,filename)
 
     def load_raw(self, filename):
+        """
+        Load a raw file into local memory. Once loaded in this way, the returned
+        object can be displayed with display_raw()
+
+        Args:
+          filename: string containint the exact filename, either as an absolute
+            or relative path.
+        """
+
         filename = os.path.expanduser(filename)
         return Raw(self, filename)
 
@@ -346,10 +400,18 @@ class Screen:
         after displaying it unless cleanup is set to False.
 
         Returns a namedtuple (from the collections module) with the fields
-        mean_FPS, slowest_frame_FPS,
-        and start_time; these refer respectively to the average FPS, the inverse
-        of the time of the slowest frame, and the time the
-        grating began to play (in Unix Time).
+        mean_interframe, stddev_interframe and start_time; these refer
+        respectively to the average interframe time in microseconds, the standard
+        deviation of the interframe time and grating began to play in Unix Time,
+        respectively.
+
+        Args:
+          grating: a grating objected loaded with Screen.load_grating()
+          trigger_pin: set to 0 to displayed gratting as soon as possible or set to
+            the GPIO pin (as defined by wiringPi) to wait for a trigger signal on.
+
+        Returns:
+          performance record as a named tuple.
         """
         rawtuple = rpigratings.display_grating(self.capsule, grating.capsule, trigger_pin)
         if rawtuple is None:
@@ -385,15 +447,16 @@ class Screen:
         highest level directory. Gratings are seperated by one second of midgray.
         """
 
-        path_of_log_file = os.path.expanduser(path_of_log_file)
-
-        dir_containg_gratings = os.path.expanduser(dir_containing_gratings)
+        dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
         gratings = []
+        print("Loading gratings...")
         for file in os.listdir(dir_containing_gratings):
-            gratings.append((self.load_grating(file),dir_containing_gratings + "/" + file))
-        random.shuffle(gratings)
-        record = []
-        for grating in gratings:
+            gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
+        randomized_gratings = self.randomize_grating_list(gratings)
+
+        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
+
+        for grating in randomized_gratings:
             perf = self.display_grating(grating[0])
             self.display_greyscale(self.background)
             self.print_log(logfile_name, "Grating", grating[1], perf)
@@ -424,35 +487,47 @@ class Screen:
         second time, and so on. When not displaying gratings the
         screen will be filled by midgray.
         """
- 
+
         self.display_greyscale(self.background)
 
         dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
         gratings = []
+        print("Loading gratings...")
         for file in os.listdir(dir_containing_gratings):
             gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
-        remaining_gratings = gratings.copy()
+        randomized_gratings = self.randomize_grating_list(gratings)
+        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
+        n = 0
         while True:
-            index = random.randint(0,len(remaining_gratings)-1)
-            perf = self.display_grating(remaining_gratings[index][0], trigger_pin)
+            perf = self.display_grating(randomized_gratings[n][0], trigger_pin)
             self.display_greyscale(self.background)
             if perf is None:
                 break
-            self.print_log(logfile_name, "Grating", remaining_gratings[index][1], perf)
-            remaining_gratings.pop(index)
-            if len(remaining_gratings) == 0:
-                remaining_gratings = gratings.copy()
+            self.print_log(logfile_name, "Grating", randomized_gratings[n][1], perf)
+            n += 1
+            if n >= len(randomized_gratings):
+                n = 0
 
         print("Waiting for pulses ended")
 
     def print_log(self, filename, file_type, file_displayed, perf):
         path_of_logfile = os.path.expanduser("~/rpg/logs/") + filename
         with open(path_of_logfile, "a") as file:
-            file.write("%s: %s \t Displayed starting at (unix time): %d \t Fastest frame (FPS): %.2f \t slowest frame (FPS): %.2f \n" 
-                %(file_type, file_displayed, perf.start_time, perf.fastest_frame, perf.slowest_frame))
+            file.write("%s: %s \t Displayed starting at (unix time): %d \t Average frame duration (micros): %.2f \t  Std Dev of frame duration(FPS): %.2f \n" 
+                %(file_type, file_displayed, perf.start_time, perf.mean_interframe, perf.stddev_interframe))
 
+    def randomize_grating_list(self, gratings):
+        hashed_gratings = [ hashlib.md5(grating[1].encode()).hexdigest() for grating in gratings]
+        labelled_hashes = enumerate(hashed_gratings)
+        labelled_hashes = [ (x[1], x[0]) for x in labelled_hashes ]
+        sorted_hashes = sorted(labelled_hashes)
+        randomized_gratings = [] 
+
+        for el in sorted_hashes:
+            randomized_gratings.append( gratings[el[1]] )
+        return randomized_gratings
 
     def close(self):
         """

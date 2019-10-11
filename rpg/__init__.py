@@ -29,83 +29,7 @@ SQUARE = 0
 
 import _rpigratings as rpigratings
 
-def _parse_options(options):
-    """
-    An internal function for testing if options have been
-    set correctly, and setting default options if none
-    have been provided.
 
-    Args: 
-      options: A dictionary containing options.
-
-    Returns:
-      Parsed option dictionary suitable for passing to other functions
-    """
-    op = options.copy()
-    if "duration" in op:
-        if op["duration"] <= 0:
-            raise ValueError("options['duration'] option set to invalid value of %d, must be >0" %op["duration"])
-    else:
-        raise ValueError("Provide options['duration'] in option dictionary")
-
-    if "angle" not in op:
-        raise ValueError("Provide options['angle'] in options dictionary")
-
-    if "spac_freq" in op:
-        if op["spac_freq"] <= 0:
-            raise ValueError("options['spac_freq'] set to invalid value of %d, must be > 0" %op["spac_freq"])
-    else:
-        raise ValueError("Provide options['space_freq'] in options dictionary")
-
-    if "temp_freq" in op:
-        if op["temp_freq"] < 0:
-            raise ValueError("options['temp_freq'] set to invalid value of %d, must be >= 0" %op["temp_freq"])
-    else:
-        raise ValueError("Provide options['temp_freq'] in options dictionary")
-
-    if "contrast" in op:
-        if op["contrast"] < 0 or op["contrast"] > 1:
-            raise ValueError("options['contrast'] set to invalid value of %d, must be set between 0 and 1 or not set" %op["contrast"])
-    else:
-        op["contrast"] = 1
-
-    if "background" in op:
-        if op["background"] < 0 or op["background"] > 255:
-            raise ValueError("options['background'] set to invalid value of %d, must be set between 0 and 255 or not set" %op["contrast"])
-    else:
-        op["background"] = 127
-
-    if "resolution" not in op:
-        op["resolution"] = (1280, 720)
-
-    if "waveform" not in op:
-        op["waveform"] = SINE
-
-    if "percent_sigma" in op:
-        if op["percent_sigma"] <= 0:
-            raise ValueError("options['percent_sigma'] set to invalid value of %d, must be set > 0 or not set" %op["percent_sigma"])
-    else:
-        op["percent_sigma"] = 0
-
-    if "percent_diameter" in op:
-        if op["percent_diameter"] <= 0:
-            raise ValueError("options['percent_diameter'] set to invalid value of %d, must be set > 0 or not set" %op["percent_diameter"])
-    else:
-        op["percent_diameter"] = 0
-
-    if "percent_center_left" not in op:
-        op["percent_center_left"] = 50
-
-    if "percent_center_top" not in op:
-        op["percent_center_top"] = 50
-
-    if "percent_padding" in op:
-        if op["percent_padding"] <= 0:
-            raise ValueError("options['percent_padding'] set to invalid value of %d, must be set > 0 or not set" %op["percent_padding"])
-    else:
-        op["percent_padding"] = 0
-
-    return op
 
 def build_grating(filename, options):
 
@@ -375,6 +299,8 @@ class Screen:
         Args:
           filename: string containing the exact filename, either as an absolute
             or relative, e.g. "~/gratings/grat1.dat" or "home/pi/grating/grat1.dat"
+        Returns:
+          Grating object
         """
         filename = os.path.expanduser(filename)
         return Grating(self,filename)
@@ -387,6 +313,8 @@ class Screen:
         Args:
           filename: string containint the exact filename, either as an absolute
             or relative path.
+        Returns:
+          Raw object
         """
 
         filename = os.path.expanduser(filename)
@@ -394,10 +322,9 @@ class Screen:
 
     def display_grating(self, grating, trigger_pin = 0):
         """
-        Display the currently loaded grating (grating files are created with
+        Display the passed grating object (grating files are created with
         the draw_grating function and loaded with the Screen.load_grating
-        method). Also automatically unloads the currently loaded grating
-        after displaying it unless cleanup is set to False.
+        method). 
 
         Returns a namedtuple (from the collections module) with the fields
         mean_interframe, stddev_interframe and start_time; these refer
@@ -407,9 +334,11 @@ class Screen:
 
         Args:
           grating: a grating objected loaded with Screen.load_grating()
-          trigger_pin: set to 0 to displayed gratting as soon as possible or set to
-            the GPIO pin (as defined by wiringPi) to wait for a trigger signal on.
-
+          trigger_pin: set to 0 to display gratting as soon as possible or set to
+            the GPIO pin (as defined by wiringPi) to wait for a trigger signal.
+            Note: digital signal is 3.3 volts max, not 5 volt TTL. 5 volt signals
+            risk permanently damaging the raspberry pi.
+            
         Returns:
           performance record as a named tuple.
         """
@@ -420,6 +349,21 @@ class Screen:
                 return GratPerfRec(*rawtuple)
 
     def display_raw(self, raw, trigger_pin = 0):
+        """
+        Displays the passed raw object (raw objects are loaded with the 
+        Screen.load_raw method) either as soon as possible, or in response
+        to 3.3V trigger.
+        
+        Args:
+          raw: a raw object loaded with Screen.load_raw()
+          trigger_pin: set to 0 to display raw as soon as possible or set to
+            the GPIO pin (as defined by wiringPi) to wait for a trigger signal.
+            Note: digital signal is 3.3 volts max, not 5 volt TTL. 5 volt signals
+            risk permanently damaging the raspberry pi.
+            
+        Returns:
+          Performance record as named tuple.
+        """
         rawtuple = rpigratings.display_raw(self.capsule, raw.capsule, trigger_pin)
         if rawtuple is None:
                 return None
@@ -431,8 +375,12 @@ class Screen:
         Fill the screen with a solid color until something else is
                 displayed to the screen. Calling display_color(GRAY) will
                 display mid-gray.
-        :param color: Value between 0 and 255, 
-        :rtype None:
+                
+        Args:
+          color: Value between 0 and 255.
+         
+        Returns:
+          None
         """
         if (color<0 or color>255):
                 self.close()
@@ -442,9 +390,26 @@ class Screen:
     def display_gratings_randomly(self, dir_containing_gratings, intertrial_time, logfile_name="rpglog.txt"):
         """
         For each file in directory dir_containing_gratings, attempt to display
-        that file as a grating. The order of display is randomised. The location
-        of the log file is given by path_of_log_file, and defaults to the
-        highest level directory. Gratings are seperated by one second of midgray.
+        that file as a grating. The order of display is a fixed but psudorandomised.
+        The location of the log file is ~/rpg/logs/ . Gratings are seperated
+        by intertrial_time seconds of the background color set when Screen
+        object created.
+        
+        Method is blocking, and will not return until all files in directory
+        displayed
+        
+        
+        Args:
+          dir_containing_gratings: A relative or absolute directory path
+            to a directory containing gratings. Must not contain any other 
+            non grating files, or sub directories.
+          intertrial_time: Time between gratings in seconds. Will have 
+            ~1 millisecond accuracy
+          logfile_name: Name of log file to write performance record to.
+            written into directory ~/rpg/logs/
+            
+        Returns:
+          None
         """
 
         dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
@@ -452,40 +417,37 @@ class Screen:
         print("Loading gratings...")
         for file in os.listdir(dir_containing_gratings):
             gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
-        randomized_gratings = self.randomize_grating_list(gratings)
+        randomized_gratings = self._randomize_grating_list(gratings)
 
         print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
 
         for grating in randomized_gratings:
             perf = self.display_grating(grating[0])
             self.display_greyscale(self.background)
-            self.print_log(logfile_name, "Grating", grating[1], perf)
+            self._print_log(logfile_name, "Grating", grating[1], perf)
             t.sleep(intertrial_time)
-
-    def display_raw_on_pulse(self, filename, trigger_pin, logfile_name="rpglog.txt"):
-
-        self.display_color(self.background)
-        raw = self.load_raw(os.path.expanduser(filename))
-        print("Waiting for pulse on pin " + str(trigger_pin) + ".")
-        print("Press any key to stop waiting...")
-        while True:
-            perf = self.display_raw(raw, trigger_pin)
-            self.display_greyscale(self.background)
-            if perf is None:
-                break
-            self.print_log(logfile_name, "Raw", filename, perf)
-
-        print("Waiting for pulses ended")
 
 
     def display_rand_grating_on_pulse(self, dir_containing_gratings, trigger_pin, logfile_name="rpglog.txt"):
         """
-        Upon receiving a 3.3V pulse (NOT 5V!!!), to xtrigger_pin,
-        choose a grating at random from dir_containing_gratings
-        and display it. Each grating in the directory is guaranteed
-        to be displayed once before any grating is displayed for the
-        second time, and so on. When not displaying gratings the
-        screen will be filled by midgray.
+        Displays a psudorandom grating from the passed directory in response
+        to a 3.3V signal to a GPIO pin. Gauranteed to display each grating
+        in directory before playing gratings again. Will display gratings
+        in a fixed order across sessions. Between gratings, displays
+        Screen.background() shade. Function is blocking, but will return
+        in response 
+        
+        Args:
+          dir_containing_gratings: A relative or absolute directory path
+            to a directory containing gratings. Must not contain any other 
+            non grating files, or sub directories.
+          trigger_pin: Which trigger pin the raspberry pi listens on for the
+            3.3V pulse.
+          logfile_name: Name of log file to write performance record to.
+            written into directory ~/rpg/logs/
+            
+        Returns:
+          None
         """
 
         self.display_greyscale(self.background)
@@ -495,7 +457,7 @@ class Screen:
         print("Loading gratings...")
         for file in os.listdir(dir_containing_gratings):
             gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
-        randomized_gratings = self.randomize_grating_list(gratings)
+        randomized_gratings = self._randomize_grating_list(gratings)
         print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
@@ -505,20 +467,42 @@ class Screen:
             self.display_greyscale(self.background)
             if perf is None:
                 break
-            self.print_log(logfile_name, "Grating", randomized_gratings[n][1], perf)
+            self._print_log(logfile_name, "Grating", randomized_gratings[n][1], perf)
             n += 1
             if n >= len(randomized_gratings):
                 n = 0
 
         print("Waiting for pulses ended")
 
-    def print_log(self, filename, file_type, file_displayed, perf):
+    def _print_log(self, filename, file_type, file_displayed, perf):
+        """
+        Internal function for print log file
+        
+        Args:
+          filename: string of file displayed
+          file_type: string of whether the file was a raw or a grating
+          perf: Named tuple of performance record
+          
+        Returns:
+          None
+        """
         path_of_logfile = os.path.expanduser("~/rpg/logs/") + filename
         with open(path_of_logfile, "a") as file:
             file.write("%s: %s \t Displayed starting at (unix time): %d \t Average frame duration (micros): %.2f \t  Std Dev of frame duration(FPS): %.2f \n" 
                 %(file_type, file_displayed, perf.start_time, perf.mean_interframe, perf.stddev_interframe))
 
-    def randomize_grating_list(self, gratings):
+    def _randomize_grating_list(self, gratings):
+        """
+        Internal function for psudorandomizing gratings. Files paths are hashed
+        with MD5 to generate a string, which is then sorted to give order. This
+        achieves a psuedo random order that is fixed across sessions.
+        
+        Args:
+          gratings: list containing grating path names
+        
+        Returns:
+          list of grating path names psuedorandomzied
+        """
         hashed_gratings = [ hashlib.md5(grating[1].encode()).hexdigest() for grating in gratings]
         labelled_hashes = enumerate(hashed_gratings)
         labelled_hashes = [ (x[1], x[0]) for x in labelled_hashes ]
@@ -533,7 +517,12 @@ class Screen:
         """
         Destroy this object, cleaning up its memory and restoring previous
         screen settings.
-        :rtype None:
+        
+        Args:
+          None
+          
+        Returns:
+          None
         """
         print("Screen object has been closed. You will need to make a new one")
         rpigratings.close_display(self.capsule)
@@ -562,3 +551,81 @@ class Raw:
 		self.capsule = rpigratings.load_raw(filename)
 	def __del__(self):
 		rpigratings.unload_raw(self.capsule)
+
+def _parse_options(options):
+    """
+    An internal function for testing if options have been
+    set correctly, and setting default options if none
+    have been provided.
+
+    Args: 
+      options: A dictionary containing options.
+
+    Returns:
+      Parsed option dictionary suitable for passing to other functions
+    """
+    op = options.copy()
+    if "duration" in op:
+        if op["duration"] <= 0:
+            raise ValueError("options['duration'] option set to invalid value of %d, must be >0" %op["duration"])
+    else:
+        raise ValueError("Provide options['duration'] in option dictionary")
+
+    if "angle" not in op:
+        raise ValueError("Provide options['angle'] in options dictionary")
+
+    if "spac_freq" in op:
+        if op["spac_freq"] <= 0:
+            raise ValueError("options['spac_freq'] set to invalid value of %d, must be > 0" %op["spac_freq"])
+    else:
+        raise ValueError("Provide options['space_freq'] in options dictionary")
+
+    if "temp_freq" in op:
+        if op["temp_freq"] < 0:
+            raise ValueError("options['temp_freq'] set to invalid value of %d, must be >= 0" %op["temp_freq"])
+    else:
+        raise ValueError("Provide options['temp_freq'] in options dictionary")
+
+    if "contrast" in op:
+        if op["contrast"] < 0 or op["contrast"] > 1:
+            raise ValueError("options['contrast'] set to invalid value of %d, must be set between 0 and 1 or not set" %op["contrast"])
+    else:
+        op["contrast"] = 1
+
+    if "background" in op:
+        if op["background"] < 0 or op["background"] > 255:
+            raise ValueError("options['background'] set to invalid value of %d, must be set between 0 and 255 or not set" %op["contrast"])
+    else:
+        op["background"] = 127
+
+    if "resolution" not in op:
+        op["resolution"] = (1280, 720)
+
+    if "waveform" not in op:
+        op["waveform"] = SINE
+
+    if "percent_sigma" in op:
+        if op["percent_sigma"] <= 0:
+            raise ValueError("options['percent_sigma'] set to invalid value of %d, must be set > 0 or not set" %op["percent_sigma"])
+    else:
+        op["percent_sigma"] = 0
+
+    if "percent_diameter" in op:
+        if op["percent_diameter"] <= 0:
+            raise ValueError("options['percent_diameter'] set to invalid value of %d, must be set > 0 or not set" %op["percent_diameter"])
+    else:
+        op["percent_diameter"] = 0
+
+    if "percent_center_left" not in op:
+        op["percent_center_left"] = 50
+
+    if "percent_center_top" not in op:
+        op["percent_center_top"] = 50
+
+    if "percent_padding" in op:
+        if op["percent_padding"] <= 0:
+            raise ValueError("options['percent_padding'] set to invalid value of %d, must be set > 0 or not set" %op["percent_padding"])
+    else:
+        op["percent_padding"] = 0
+
+    return op

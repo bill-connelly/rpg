@@ -581,7 +581,7 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 	frame_data += sizeof(fileheader_raw)/sizeof(float);
 
 	uint16_t *write_loc;
-	int t, buffer, pixel, frame, clock_status, waits;
+	int t, buffer, pixel, clock_status, waits;
 	write_loc = fb0.map + fb0.size/2;
 	float *frame_duration_mean = malloc(2*sizeof(float));
 	float *frame_duration_std = frame_duration_mean+1;
@@ -598,26 +598,14 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 			return NULL;
 		}
 
-		frame = t;
 		buffer = (t+1)%2;
-		printf("Writing a frame then flipping to buffer %d and printing frame %d \n",buffer, t);
 		for(pixel = 0; pixel < fb0.size/2; pixel++) {
-			*write_loc = frame_data[(frame*fb0.size/2)+pixel];
+			*write_loc = frame_data[(t*fb0.size/2)+pixel];
 			write_loc++;
 		}
-		if (t == 0) {
+		flip_buffer(buffer, fb0);
+		for (waits = 0; waits < refresh_per_frame; waits++) {
 			ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
-			flip_buffer(buffer, fb0);
-		} else {
-			for (waits = 0; waits < refresh_per_frame; waits++) {
-				ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
-			}
-			flip_buffer(buffer, fb0);
-		}
-		if (t == n_frames-1) {
-			for (waits = 0; waits < refresh_per_frame; waits++) {
-				ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
-			}
 		}
 		if (t != 0) {
 			timings[t-1] = cmp_times(frame_end, frame_start);
@@ -629,7 +617,6 @@ double* display_raw(uint16_t *frame_data, fb_config fb0, int trig_pin) {
 			write_loc = fb0.map;
 			digitalWrite(1, LOW);
 		}
-		printf("Moving write location to buffer %d\n",!buffer);
 	}
 	*frame_duration_mean = mean_long(timings, n_frames-1);
 	*frame_duration_std = std_long(timings, n_frames-1);
@@ -670,7 +657,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 		}
 
 		frame = t%(header->frames_per_cycle);
-		buffer = t%2;
+		buffer = (t+1)%2;
 		for(pixel = 0; pixel<fb0.size/2; pixel++){
 			*write_loc = frame_data[(frame*fb0.size/2)+pixel];
 			write_loc++;
@@ -683,7 +670,7 @@ double* display_grating(uint16_t* frame_data, fb_config fb0, int trig_pin){
 			timings[t-1] = cmp_times(frame_end, frame_start);
 		}
 
-		if(buffer){
+		if(!buffer){
 			digitalWrite(1, LOW);
 			write_loc = fb0.map + fb0.size/2;
 		} else {

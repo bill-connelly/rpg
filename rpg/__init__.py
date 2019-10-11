@@ -98,9 +98,9 @@ def build_masked_grating(filename, options):
           "percent_diameter": 50,    #diameter of mask as percentage of screen width
           "percent_center_left": 50, #horizontal center of mask as percentage of screen width
           "percent_ceter_top": 50,   #vertical center of mask as percentage of screen height
-          "percent_padding", 10      #specify whether the edge of mask blurs to background value over what distance
         }
         optional options are:
+          "percent_padding", 10      #specify whether the edge of mask blurs to background value over what distance
           "contrast": 1,     #maximum contrast
           "background": 127,   #
           "resolution": (1280, 720)   #resolution of gratings. Must match Screen()
@@ -338,10 +338,14 @@ class Screen:
             the GPIO pin (as defined by wiringPi) to wait for a trigger signal.
             Note: digital signal is 3.3 volts max, not 5 volt TTL. 5 volt signals
             risk permanently damaging the raspberry pi.
-            
+
         Returns:
           performance record as a named tuple.
         """
+        if trigger_pin == 1:
+                raise ValueError("trigger_pin cannot be set to 1. This pin is reserved for feedback")
+
+
         rawtuple = rpigratings.display_grating(self.capsule, grating.capsule, trigger_pin)
         if rawtuple is None:
                 return None
@@ -353,17 +357,21 @@ class Screen:
         Displays the passed raw object (raw objects are loaded with the 
         Screen.load_raw method) either as soon as possible, or in response
         to 3.3V trigger.
-        
+
         Args:
           raw: a raw object loaded with Screen.load_raw()
           trigger_pin: set to 0 to display raw as soon as possible or set to
             the GPIO pin (as defined by wiringPi) to wait for a trigger signal.
             Note: digital signal is 3.3 volts max, not 5 volt TTL. 5 volt signals
             risk permanently damaging the raspberry pi.
-            
+
         Returns:
           Performance record as named tuple.
         """
+
+        if trigger_pin == 1:
+                raise ValueError("trigger_pin cannot be set to 1. This pin is reserved for feedback")
+
         rawtuple = rpigratings.display_raw(self.capsule, raw.capsule, trigger_pin)
         if rawtuple is None:
                 return None
@@ -375,10 +383,10 @@ class Screen:
         Fill the screen with a solid color until something else is
                 displayed to the screen. Calling display_color(GRAY) will
                 display mid-gray.
-                
+
         Args:
           color: Value between 0 and 255.
-         
+
         Returns:
           None
         """
@@ -394,11 +402,11 @@ class Screen:
         The location of the log file is ~/rpg/logs/ . Gratings are seperated
         by intertrial_time seconds of the background color set when Screen
         object created.
-        
+
         Method is blocking, and will not return until all files in directory
         displayed
-        
-        
+
+
         Args:
           dir_containing_gratings: A relative or absolute directory path
             to a directory containing gratings. Must not contain any other 
@@ -407,7 +415,7 @@ class Screen:
             ~1 millisecond accuracy
           logfile_name: Name of log file to write performance record to.
             written into directory ~/rpg/logs/
-            
+
         Returns:
           None
         """
@@ -428,6 +436,47 @@ class Screen:
             t.sleep(intertrial_time)
 
 
+    def display_raw_randomly(self, dir_containing_raws, intertrial_time, logfile_name="rpglog.txt"):
+        """
+        For each file in directory dir_containing_raws, attempt to display
+        that file as a raw. The order of display is a fixed but psudorandomised.
+        The location of the log file is ~/rpg/logs/ . Raws are seperated
+        by intertrial_time seconds of the background color set when Screen
+        object created.
+
+        Method is blocking, and will not return until all files in directory
+        displayed
+
+
+        Args:
+          dir_containing_raws: A relative or absolute directory path
+            to a directory containing raws. Must not contain any other 
+            non raw files, or sub directories.
+          intertrial_time: Time between raws in seconds. Will have 
+            ~1 millisecond accuracy
+          logfile_name: Name of log file to write performance record to.
+            written into directory ~/rpg/logs/
+
+        Returns:
+          None
+        """
+
+        dir_containing_raws = os.path.expanduser(dir_containing_raws)
+        raws = []
+        print("Loading raws...")
+        for file in os.listdir(dir_containing_raws):
+            raws.append((self.load_raw(dir_containing_raws + "/" + file),dir_containing_raws + "/" + file))
+        randomized_raws = self._randomize_grating_list(raws)
+
+        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_rawss ] ))
+
+        for raw in randomized_raws:
+            perf = self.display_raw(raw[0])
+            self.display_greyscale(self.background)
+            self._print_log(logfile_name, "Raw", raw[1], perf)
+            t.sleep(intertrial_time)
+
+
     def display_rand_grating_on_pulse(self, dir_containing_gratings, trigger_pin, logfile_name="rpglog.txt"):
         """
         Displays a psudorandom grating from the passed directory in response
@@ -435,8 +484,8 @@ class Screen:
         in directory before playing gratings again. Will display gratings
         in a fixed order across sessions. Between gratings, displays
         Screen.background() shade. Function is blocking, but will return
-        in response 
-        
+        in response to a keystroke
+
         Args:
           dir_containing_gratings: A relative or absolute directory path
             to a directory containing gratings. Must not contain any other 
@@ -445,7 +494,7 @@ class Screen:
             3.3V pulse.
           logfile_name: Name of log file to write performance record to.
             written into directory ~/rpg/logs/
-            
+
         Returns:
           None
         """
@@ -474,6 +523,54 @@ class Screen:
 
         print("Waiting for pulses ended")
 
+    def display_rand_raw_on_pulse(self, dir_containing_raws, trigger_pin, logfile_name="rpglog.txt"):
+        """
+        Displays a psudorandom raw from the passed directory in response
+        to a 3.3V signal to a GPIO pin. Gauranteed to display each raw
+        in directory before playing raws again. Will display raw
+        in a fixed order across sessions. Between raws, displays
+        Screen.background() shade. Function is blocking, but will return
+        in response to a keystroke.
+
+        Args:
+          dir_containing_raws: A relative or absolute directory path
+            to a directory containing raws. Must not contain any other 
+            non raw files, or sub directories.
+          trigger_pin: Which trigger pin the raspberry pi listens on for the
+            3.3V pulse.
+          logfile_name: Name of log file to write performance record to.
+            written into directory ~/rpg/logs/
+
+        Returns:
+          None
+        """
+
+        self.display_greyscale(self.background)
+
+        dir_containing_raws = os.path.expanduser(dir_containing_raws)
+        raws = []
+        print("Loading raws...")
+        for file in os.listdir(dir_containing_raws):
+            raws.append((self.load_grating(dir_containing_raws + "/" + file),dir_containing_raws + "/" + file))
+        randomized_raws = self._randomize_grating_list(raws)
+        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_raws ] ))
+        print("Waiting for pulse on pin " + str(trigger_pin) + ".")
+        print("Press any key to stop waiting...")
+        n = 0
+        while True:
+            perf = self.display_raw(randomized_raws[n][0], trigger_pin)
+            self.display_greyscale(self.background)
+            if perf is None:
+                break
+            self._print_log(logfile_name, "Raw", randomized_raws[n][1], perf)
+            n += 1
+            if n >= len(randomized_raws):
+                n = 0
+
+        print("Waiting for pulses ended")
+
+
+
     def _print_log(self, filename, file_type, file_displayed, perf):
         """
         Internal function for print log file
@@ -482,13 +579,13 @@ class Screen:
           filename: string of file displayed
           file_type: string of whether the file was a raw or a grating
           perf: Named tuple of performance record
-          
+
         Returns:
           None
         """
         path_of_logfile = os.path.expanduser("~/rpg/logs/") + filename
         with open(path_of_logfile, "a") as file:
-            file.write("%s: %s \t Displayed starting at (unix time): %d \t Average frame duration (micros): %.2f \t  Std Dev of frame duration(FPS): %.2f \n" 
+            file.write("%s: \t %s \t Displayed starting at (unix time): %d \t Average frame duration (micros): %.2f \t  Std Dev of frame duration(FPS): %.2f \n" 
                 %(file_type, file_displayed, perf.start_time, perf.mean_interframe, perf.stddev_interframe))
 
     def _randomize_grating_list(self, gratings):

@@ -1,6 +1,5 @@
 # RPG
-## A high performance python library for displaying drifting gratings on the
-Raspberry Pi 3.
+## A high performance python library for displaying drifting gratings on the Raspberry Pi 3.
 
 ## Download
 Move to your home directory, and clone the repository

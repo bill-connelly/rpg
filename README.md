@@ -131,7 +131,10 @@ This can then be displayed with:
 ```
     >>> myscreen.display_raw(raw)
 ```
-As 
+In a similar fashion to drifting gratings, raws can also be displayed in response to a 3.3V pulse with:
+```
+    >>> myscreen.display_raw
+``` 
 
 
 

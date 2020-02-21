@@ -1,4 +1,5 @@
-rpg.build_grating(filename, options)
+**rpg.build_grating(filename, options)**
+
 	Create a raw animation file of a drifting grating. Saves file to hard disc. This file is then loaded with Screen.load_grating, and displayed with one of the Screen methods.
 
 	Parameters:

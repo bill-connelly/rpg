@@ -111,7 +111,7 @@ RPG is capable of displaying images and movies with the same temporal accuracy a
 
 Specifically, the file must be saved pixelwise from the top left pixel, proceeding row-wise, with each pixel saved as (uint8) R, (uint8) G, (uint8) B.... until the final bottom right pixel. If the file contains more than one frame, i.e. it is a movie, then the subsequent byte saves is the red value of the top left pixel of the second frame. We have included some examples of how to process videos and images in the examples folders.
 
-Once a raw file is produced to the above specification, it can be converted to a format suitable for RPG to play with the function `convert_raw`. Specifically, if a raw 30 FPS movie at 1024x768 resolution with 200 frames is saved in "~/import/rawmovie.raw" it can be converted and saved to "~/raws/raw_c.raw" with the following
+Once a raw file is produced to the above specification, it can be converted to a format suitable for RPG to play with the function `convert_raw`. Specifically, if a raw 30 FPS movie at 1024x768 resolution with 200 frames is saved in "\~/import/rawmovie.raw" it can be converted and saved to "\~/raws/raw_c.raw" with the following
 ```
     >>> convert_raw("~/import/rawmovie.raw", "~/raws/raw_c.raw", 200, 1024, 768, 2)
 ```
@@ -131,11 +131,18 @@ This can then be displayed with:
 ```
     >>> myscreen.display_raw(raw)
 ```
-In a similar fashion to drifting gratings, raws can also be displayed in response to a 3.3V pulse with:
+In a similar fashion to drifting gratings, raws can also be displayed in response to a 3.3V pulse by specifying the pin number:
 ```
-    >>> myscreen.display_raw
+    >>> myscreen.display_raw(raw, 6)
 ``` 
-
+Likewise, analogous functions to `display_grating_randomly()` and `display_rand_grating_on_pulse()` exist for raws. You can randomly select raws from a directory, and display them with an intertrial time of 2 seconds:
+```
+    >>> myscreen.display_raw_randomly("/~/raw_directory/, 2)
+```
+Or you can display a random raw from a directory in response to a 3.3V pulse with:
+```
+    >>> myscreen.display_rand_raw_on_pulse("/~/raw_directory", 6)
+```
 
 
 
@@ -143,21 +150,20 @@ Tested on Raspian GNU/Linux 8, Python 3.4.2.
 
 ## Troubleshooting
 
-!RASPBERRY PI 4!
+RASPBERRY PI 4
     The Raspberry Pi 4 is a newly released version of the raspberry pi that supports
     dual monitors and 4GB of memory. We believe both of these features will improve
-    the usability of RPG significantly. However, at time of writing, the model 4
-    are still on backorder, hence we cannot confirm whether RPG functions at all 
-    on this hardware. Until an update is made, people only using RPG on Raspberry Pi
-    model 3.
+    the usability of RPG significantly. RPG does not function on this hardware at
+    present due to a significant change in how graphics are displayed. Until an
+    update is made, only use RPG on Raspberry Pi model 3.
 
-!STATIONARY GRATINGS!
+STATIONARY GRATINGS
     Low resolution combined with low propogation speeds (low temporal frequency or
     high spacial frequency) and high FPS may result in unmoving gratings, because the
     per-frame propogation speed is rounded to the nearest integer number of pixels
     (such that propogation is even each frame), and this speed may be rounded down to zero.
 
-!MEMORY MANAGEMENT!
+MEMORY MANAGEMENT
     The raspberry pi 3 has 1GB of memory, of which typically 750MB is free. Each 1280 x 720
     frame of 16 bit data takes up 14.75MB of ram. A typical 1 seconds grating with no looped
     frames at 60 Hz therefore takes up 110.6MB. Hence a maximum number of *unlooped* gratings

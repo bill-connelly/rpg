@@ -421,18 +421,20 @@ class Screen:
         """
 
         dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
+        path_to_gratings = [dir_containing_gratings + "/" + file for file in os.listdir(dir_containing_gratings)]
+        randomized_path = self._randomize_list(path_to_gratings)
+
         gratings = []
         print("Loading gratings...")
-        for file in os.listdir(dir_containing_gratings):
-            gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
-        randomized_gratings = self._randomize_grating_list(gratings)
+        for file in randomized_path:
+            gratings.append(self.load_grating(file))
 
-        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
+        print("Displaying in order of: " + str([grating.filename.split("/")[-1] for grating in gratings ] ))
 
-        for grating in randomized_gratings:
-            perf = self.display_grating(grating[0])
+        for grating in gratings:
+            perf = self.display_grating(grating)
             self.display_greyscale(self.background)
-            self._print_log(logfile_name, "Grating", grating[1], perf)
+            self._print_log(logfile_name, "Grating", grating.filename, perf)
             t.sleep(intertrial_time)
 
 
@@ -462,18 +464,20 @@ class Screen:
         """
 
         dir_containing_raws = os.path.expanduser(dir_containing_raws)
+        path_to_raws = [dir_containing_raws + "/" + file for file in os.listdir(dir_containing_raws)]
+        randomized_path = self._randomize_list(path_to_raws)
+
         raws = []
         print("Loading raws...")
-        for file in os.listdir(dir_containing_raws):
-            raws.append((self.load_raw(dir_containing_raws + "/" + file),dir_containing_raws + "/" + file))
-        randomized_raws = self._randomize_grating_list(raws)
+        for file in randomized_path:
+            raws.append(self.load_raw(file))
 
-        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_rawss ] ))
+        print("Displaying in order of: " + str([raw.filename.split("/")[-1] for raw in raws ] ))
 
-        for raw in randomized_raws:
-            perf = self.display_raw(raw[0])
+        for raw in raws:
+            perf = self.display_raw(raw)
             self.display_greyscale(self.background)
-            self._print_log(logfile_name, "Raw", raw[1], perf)
+            self._print_log(logfile_name, "Raw", raw.filename, perf)
             t.sleep(intertrial_time)
 
 
@@ -502,23 +506,27 @@ class Screen:
         self.display_greyscale(self.background)
 
         dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
+        path_to_gratings = [dir_containing_gratings + "/" + file for file in os.listdir(dir_containing_gratings)]
+        randomized_path = self._randomize_list(path_to_gratings)
+
         gratings = []
         print("Loading gratings...")
-        for file in os.listdir(dir_containing_gratings):
-            gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
-        randomized_gratings = self._randomize_grating_list(gratings)
-        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
+        for file in randomized_path:
+            gratings.append(self.load_grating(file))
+
+        print("Displaying in order of: " + str([grating.filename.split("/")[-1] for grating in gratings ] ))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
+
         n = 0
         while True:
-            perf = self.display_grating(randomized_gratings[n][0], trigger_pin)
+            perf = self.display_grating(gratings[n], trigger_pin)
             self.display_greyscale(self.background)
             if perf is None:
                 break
-            self._print_log(logfile_name, "Grating", randomized_gratings[n][1], perf)
+            self._print_log(logfile_name, "Grating", gratings[n].filename, perf)
             n += 1
-            if n >= len(randomized_gratings):
+            if n >= len(gratings):
                 n = 0
 
         print("Waiting for pulses ended")
@@ -548,23 +556,27 @@ class Screen:
         self.display_greyscale(self.background)
 
         dir_containing_raws = os.path.expanduser(dir_containing_raws)
+        path_to_raws = [dir_containing_raws + "/" + file for file in os.listdir(dir_containing_raws)]
+        randomized_path = self._randomize_list(path_to_raws)
+
         raws = []
         print("Loading raws...")
-        for file in os.listdir(dir_containing_raws):
-            raws.append((self.load_grating(dir_containing_raws + "/" + file),dir_containing_raws + "/" + file))
-        randomized_raws = self._randomize_grating_list(raws)
-        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_raws ] ))
+        for file in randomized_path:
+            raws.append(self.load_raw(file))
+
+        print("Displaying in order of: " + str([raw.filename.split("/")[-1] for raw in raws ] ))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
+
         n = 0
         while True:
-            perf = self.display_raw(randomized_raws[n][0], trigger_pin)
+            perf = self.display_raw(raws[n], trigger_pin)
             self.display_greyscale(self.background)
             if perf is None:
                 break
-            self._print_log(logfile_name, "Raw", randomized_raws[n][1], perf)
+            self._print_log(logfile_name, "Raw", raws[n].filename, perf)
             n += 1
-            if n >= len(randomized_raws):
+            if n >= len(raws):
                 n = 0
 
         print("Waiting for pulses ended")
@@ -574,7 +586,7 @@ class Screen:
     def _print_log(self, filename, file_type, file_displayed, perf):
         """
         Internal function for print log file
-        
+ 
         Args:
           filename: string of file displayed
           file_type: string of whether the file was a raw or a grating
@@ -583,44 +595,47 @@ class Screen:
         Returns:
           None
         """
+
         path_of_logfile = os.path.expanduser("~/rpg/logs/") + filename
         with open(path_of_logfile, "a") as file:
             file.write("%s: \t %s \t Displayed starting at (unix time): %d \t Average frame duration (micros): %.2f \t  Std Dev of frame duration(FPS): %.2f \n" 
                 %(file_type, file_displayed, perf.start_time, perf.mean_interframe, perf.stddev_interframe))
 
-    def _randomize_grating_list(self, gratings):
+    def _randomize_list(self, lst):
         """
-        Internal function for psudorandomizing gratings. Files paths are hashed
+        Internal function for psudorandomizing gratings paths. Files paths are hashed
         with MD5 to generate a string, which is then sorted to give order. This
         achieves a psuedo random order that is fixed across sessions.
-        
+
         Args:
-          gratings: list containing grating path names
-        
+          list: list containing grating path names, or any strings
+
         Returns:
           list of grating path names psuedorandomzied
         """
-        hashed_gratings = [ hashlib.md5(grating[1].encode()).hexdigest() for grating in gratings]
-        labelled_hashes = enumerate(hashed_gratings)
+
+        hashed_list = [ hashlib.md5(el.encode()).hexdigest() for el in lst]
+        labelled_hashes = enumerate(hashed_list)
         labelled_hashes = [ (x[1], x[0]) for x in labelled_hashes ]
         sorted_hashes = sorted(labelled_hashes)
-        randomized_gratings = [] 
 
+        randomized_gratings = []
         for el in sorted_hashes:
-            randomized_gratings.append( gratings[el[1]] )
+            randomized_gratings.append( lst[el[1]] )
         return randomized_gratings
 
     def close(self):
         """
         Destroy this object, cleaning up its memory and restoring previous
         screen settings.
-        
+
         Args:
           None
-          
+
         Returns:
           None
         """
+
         print("Screen object has been closed. You will need to make a new one")
         rpigratings.close_display(self.capsule)
         del self
@@ -635,6 +650,7 @@ class Grating:
 		if type(master).__name__ != "Screen":
 			raise ValueError("master must be a Screen instance")
 		self.master = master
+		self.filename = filename
 		self.capsule = rpigratings.load_grating(master.capsule,filename)
 	def __del__(self):
 		rpigratings.unload_grating(self.capsule)
@@ -645,6 +661,7 @@ class Raw:
 		if type(master).__name__ != "Screen":
 			raise ValueError("master must be a Screen instance")
 		self.master = master
+		self.filename = filename
 		self.capsule = rpigratings.load_raw(filename)
 	def __del__(self):
 		rpigratings.unload_raw(self.capsule)

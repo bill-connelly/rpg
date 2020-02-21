@@ -553,10 +553,12 @@ int convert_raw(char* filename, char* new_filename, int n_frames, int width, int
 	uint16_t new_byte;
 	while (i < len) {
 		r = buffer[i];
-		g = buffer[i++];
-		b = buffer[i++];
-		i++;
+		g = buffer[i+1];
+		b = buffer[i+2];
+		i += 3;
 		new_byte = rgb_to_uint(r,g,b);
+               // printf("red = %i \t green = %i \t  blue = %i \t  byte = %i \n", r,g,b, new_byte);
+
 		fwrite(&new_byte,sizeof(uint16_t), 1, new_file);
 	}
 	munmap(buffer, len);
@@ -844,6 +846,16 @@ int close_display(fb_config fb0){
 /* Python Module Implementation                       */
 /*----------------------------------------------------*/
 
+
+static PyObject* py_rgb_to_uint(PyObject *self, PyObject *args) {
+  int red, green, blue;
+  if(!PyArg_ParseTuple(args, "iii", &red, &green, &blue)) {
+    return NULL;
+  }
+  uint16_t val = rgb_to_uint(red, green, blue);
+  return Py_BuildValue("i", val);
+}
+
 static PyObject* py_buildgrating(PyObject *self, PyObject *args) {
     char* filename;
     double duration, angle, sf, tf, contrast, percent_sigma, percent_diameter,
@@ -1118,7 +1130,12 @@ static PyMethodDef _rpigratings_methods[] = {
     {   
 	"convertraw", py_convertraw, METH_VARARGS,
 	"fillertext\n"
-	":type None:"
+	":rtype None:"
+    },
+    {
+        "rgb_to_uint", py_rgb_to_uint, METH_VARARGS,
+        "fillertext\n"
+        ":rtype None"
     },
     {NULL, NULL, 0, NULL}
 };

@@ -37,7 +37,7 @@ First open python
 ```
 Then import the module
 ```    
-    >>> import rgp
+    >>> import rpg
 ```
 Now we need to write some drifting gratings to disk. These can either be fullscreen, in a circular mask or as gabor patches. In this example, we will create a full screen gratings. First we need to create a dictionary to store the parameters we intend to use.
 ```
@@ -93,7 +93,7 @@ Because this is a grating with a circular mask, we also need to specify it's dia
 ```
 Now we pass that option dictionary to the function `build_list_of_gratings()` along with a string representing why type of grating with want (either "grating", "mask" or "gabor"), and the directory we want to build all our gratings in. We intend the user to place gratings to be displace in sequence in the same directory. This way that can be conviently loaded and displayed.
 ```
-    >>> rpg.build_list_of_grating("mask", "~/gratings/variable_ori/", options)
+    >>> rpg.build_list_of_gratings("mask", "~/gratings/variable_ori/", options)
 ```
 This builds gratings at each of the specified orientations, but matching in all other regards. In this manner, any property that can be specified in the option dictionary can be itterated through.
 

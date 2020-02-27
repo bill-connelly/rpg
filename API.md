@@ -115,3 +115,16 @@ Converts a raw video/image file saves as uint8: RGBRGBRGB... starting in the top
 
 * Returns:
   * None
+
+# rpg.Screen(resolution, background)
+
+A class encapsulating the raspberry pi's framebuffer, with methods to display animations gratings and solid shades to the screen.  
+ 
+ONLY ONE INSTANCE OF THIS OBJECT SHOULD EXIST AT ANY ONE TIME. Otherwise both objects will be attempting to manipulate the memory assosiated with the linux framebuffer. If a resolution change is desired first clean up the old instance of this class with the close() method and then create the new instance, or del the first instance. The resolution of this screen object does NOT need to match the actual resolution of the physical display; the linux framebuffer device is automatically scaled up to fit the physical display. The resolution of this object MUST match the resolution of any  animation files ; if the resolution of the animation is smaller pixels will simply be misaligned, but if the animation is larger then attempting to play it will cause a  segmentation fault.
+
+* Parameters:
+  * resolution (int tuple) - a tuple of the desired width of the display  resolution as (width, height). Defaults to (1280,720).  
+  * background (int) - value between 0 and 255 for the background. This is the shade that will display between animations and will NOT change the background color of any animation while it plays.   
+
+* Returns:
+  * Screen object

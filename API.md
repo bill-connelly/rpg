@@ -37,26 +37,26 @@ Create a raw animation file of a drifting grating with a circular mask. Saves fi
   * filename (string) - The filename and path to file. ~/dir/filename will generate a file called filename in a directory dir in the users home directory.
   * options (dict) - A dictionary with the required keys of: duration, angle, spac_freq and temp_freq. The user will also want to set the keys of percent_diameter, percent_center_top, percent_center_left and percent_padding which can be created as follows:
 
-    options = {  
-    "duration": 2,     #2 second long grating  
-    "angle": 90,       #90 degree gratings,  
-    "spac_freq": 0.1,  #spatial frequency in cycles per degree  
-    "temp_freq": 0.5,  #temporal frequency in cycles per second  
-    "percent_diameter": 50,    #diameter of mask as percentage of screen width  
-    "percent_center_left": 50, #horizontal center of mask as percentage of screen width  
-    "percent_ceter_top": 50,   #vertical center of mask as percentage of screen height  
-    }  
+        options = {  
+          "duration": 2,     #2 second long grating  
+          "angle": 90,       #90 degree gratings, 
+          "spac_freq": 0.1,  #spatial frequency in cycles per degree  
+          "temp_freq": 0.5,  #temporal frequency in cycles per second 
+          "percent_diameter": 50,    #diameter of mask as percentage of screen width  
+          "percent_center_left": 50, #horizontal center of mask as percentage of screen width  
+          "percent_ceter_top": 50,   #vertical center of mask as percentage of screen height  
+        }  
     
-  *optional options are:  
+  * optional options are:  
   
-    "percent_padding", 10      #specify whether the edge of mask blurs to background value over what distance  
-    "contrast": 1,     #maximum contrast  
-    "background": 127,   #  
-    "resolution": (1280, 720)   #resolution of gratings. Must match Screen()  
-    "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
+        "percent_padding", 10      #specify whether the edge of mask blurs to background value over what distance  
+        "contrast": 1,     #maximum contrast  
+        "background": 127,   #  
+        "resolution": (1280, 720)   #resolution of gratings. Must match Screen()  
+        "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
 
 * Returns:  
-  *None
+  * None
 
 
 ## rpg.build_gabor(filename, options):

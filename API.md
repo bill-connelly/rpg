@@ -60,28 +60,32 @@ Create a raw animation file of a drifting grating with a circular mask. Saves fi
 
 
 ## rpg.build_gabor(filename, options):
->Create a raw animation file of a drifting gabor patch. Saves file to hard disc. This file is then loaded with Screen.load_grating, and displayed with one of the Screen methods.
->
->Parameters:
->>* filename (string) - The filename and path to file. ~/dir/filename will generate a file called filename in a directory dir in the users home directory.
->>* options (dict) - A dictionary with the required keys of: duration, angle, spac_freq, and temp_freq. The user will also want to set the keys of sigma, percent_center_top, percent_center_left and percent_padding which can be created as follows:
->>>options = {  
->>>"duration": 2,     #2 second long grating  
->>>"angle": 90,       #90 degree gratings  
->>>"spac_freq": 0.1,  #spatial frequency in cycles per degree  
->>>"temp_freq": 0.5,  #temporal frequency in cycles per second  
->>>"percent_sigma": 10,       #'standard deviation' of the gaussian envelope of the gabor function as a percentage of screen width  
->>>"percent_center_left": 50, #horizontal center of mask as percentage of screen width  
->>>"percent_ceter_top": 50,   #vertical center of mask as percentage of screen height  
->>>}    
->>>optional options are:  
->>>"contrast": 1,     #maximum contrast  
->>>"background": 127,   #  
->>>"resolution": (1280, 720)   #resolution of gratings. Must match Screen()  
->>>"waveform": rpg.SINE #rpg.SQUARE is not allowed for gabor
->>
->>Returns:  
->>>None
+
+Create a raw animation file of a drifting gabor patch. Saves file to hard disc. This file is then loaded with Screen.load_grating, and displayed with one of the Screen methods.
+
+* Parameters:
+  * filename (string) - The filename and path to file. ~/dir/filename will generate a file called filename in a directory dir in the users home directory.
+  * options (dict) - A dictionary with the required keys of: duration, angle, spac_freq, and temp_freq. The user will also want to set the keys of sigma, percent_center_top, percent_center_left and percent_padding which can be created as follows:
+  
+        options = {  
+          "duration": 2,     #2 second long grating  
+          "angle": 90,       #90 degree gratings  
+          "spac_freq": 0.1,  #spatial frequency in cycles per degree  
+          "temp_freq": 0.5,  #temporal frequency in cycles per second  
+          "percent_sigma": 10,       #'standard deviation' of the gaussian envelope of the gabor function as a percentage of screen width  
+          "percent_center_left": 50, #horizontal center of mask as percentage of screen width  
+          "percent_ceter_top": 50,   #vertical center of mask as percentage of screen height  
+        }    
+        
+  * optional options are: 
+  
+        "contrast": 1,     #maximum contrast  
+        "background": 127,   #shade of the background   
+        "resolution": (1280, 720)   #resolution of gratings. Must match Screen()  
+        "waveform": rpg.SINE #rpg.SQUARE is not allowed for gabor
+
+* Returns:  
+    * None
 
 ## rpg.build_list_of_gratings(func_string, directory_path, options):
 >Builds a range of gratings varying over one property. One of the options supplied can be a list, and the function will iterate over that list building gratings matching each element of this list

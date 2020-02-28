@@ -22,6 +22,7 @@
     *  #### [\_print_log()](#_print_logfilename-file_type-file_displayed-perf)
     *  #### [\_randomize_list()](#_randomize_listself-list)
 
+---
 
 ## rpg.build_grating(filename, options)
 

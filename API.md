@@ -123,8 +123,158 @@ A class encapsulating the raspberry pi's framebuffer, with methods to display an
 ONLY ONE INSTANCE OF THIS OBJECT SHOULD EXIST AT ANY ONE TIME. Otherwise both objects will be attempting to manipulate the memory assosiated with the linux framebuffer. If a resolution change is desired first clean up the old instance of this class with the close() method and then create the new instance, or del the first instance. The resolution of this screen object does NOT need to match the actual resolution of the physical display; the linux framebuffer device is automatically scaled up to fit the physical display. The resolution of this object MUST match the resolution of any  animation files ; if the resolution of the animation is smaller pixels will simply be misaligned, but if the animation is larger then attempting to play it will cause a  segmentation fault.
 
 * Parameters:
-  * resolution (int tuple) - a tuple of the desired width of the display  resolution as (width, height). Defaults to (1280,720).  
-  * background (int) - value between 0 and 255 for the background. This is the shade that will display between animations and will NOT change the background color of any animation while it plays.   
+  * resolution (int tuple) - Defaults to (1280,720). a tuple of the desired width of the display  resolution as (width, height).  
+  * background (int) - Defaults to 127. value between 0 and 255 for the background. This is the shade that will display between animations and will NOT change the background color of any animation while it plays.   
 
 * Returns:
   * Screen object
+  
+## Methods
+### load_grating(filename)
+
+Load a grating file called filename into  memory. Once loaded in this way, display_grating() can be called to display the loaded file to the screen.
+
+* Parameters:  
+  * filename (string) - string containing the exact filename, either as an absolute  or relative, e.g. "~/gratings/grat1.dat" or "home/pi/grating/grat1.dat"
+
+* Returns:
+  * Grating object
+
+### load_raw(filename)
+
+Load a raw file into memory. Once loaded in this way, the returned  object can be displayed with display_raw()
+
+* Parameters:  
+  * filename: string containint the exact filename, either as an absolute or relative path, e.g. "~/raws/raw1.dat" or "home/pi/raws/raw1.dat"
+
+* Returns:
+  * Raw object
+  
+### display_grating(grating, trigger_pin):
+
+Display the passed grating object (grating objects are loaded with the Screen.load_grating method) either as soon as possible or in response to a 3.3V trigger. Returns a namedtuple (from the collections module) with the fields mean_interframe, stddev_interframe and start_time; these refer  respectively to the average interframe time in microseconds, the standard deviation of the interframe time and grating began to play in Unix Time, respectively.
+
+* Parameters:
+  * grating (grating object) - a grating objected loaded with Screen.load_grating()
+  * trigger_pin (int) - Deaults to 0. Set to 0 to display gratting as soon as possible or set to the GPIO pin (as defined by wiringPi) to wait for a trigger signal.  Trigger pin cannot be set to 1, as this is reserved for feedback. Note: digital signal is 3.3 volts max, not 5 volt TTL. 5 volt signals risk permanently damaging the raspberry pi.
+
+* Returns:
+  * Performance record as a named tuple with the fields fields mean_interframe, stddev_interframe and start_time.
+
+ ### display_raw(raw, trigger_pin):
+ 
+Displays the passed raw object (raw objects are loaded with the Screen.load_raw method) either as soon as possible, or in response to 3.3V trigger. Returns a namedtuple (from the collections module) with the fields mean_interframe, stddev_interframe and start_time; these refer  respectively to the average interframe time in microseconds, the standard deviation of the interframe time and grating began to play in Unix Time, respectively.
+
+* Parameters:
+  * raw (raw object) - a raw object loaded with Screen.load_raw()
+  * trigger_pin (int) - Deaults to 0. Set to 0 to display raw as soon as possible or set to the GPIO pin (as defined by wiringPi) to wait for a trigger signal. Trigger pin cannot be set to 1, as this is reserved for feedback. Note: digital signal is 3.3 volts max, not 5 volt TTL. 5 volt signals risk permanently damaging the raspberry pi.
+
+* Returns:
+  * Performance record as named tuple with the fields fields mean_interframe, stddev_interframe and start_time.
+  
+### display_greyscale(color):
+ 
+Fill the screen with a solid color until something else is displayed to the screen. 
+
+* Parameters:
+  * color (int) - Value between 0 and 255.
+        
+* Returns:
+  * None
+
+### display_gratings_randomly(dir_containing_gratings, intertrial_time, logfile_name):
+
+Attempts to display each file in the directory `dir_containing_gratings` as a grating. The order of display is a fixed but psudorandomised, i.e. the order will be the same every trial. See `_randomize_list` for details.
+
+The location of the log file is `~/rpg/logs/` . Gratings are seperated by intertrial_time seconds of the background color set when Screen object created.
+
+This method is blocking, and will not return until all files in directory displayed.
+
+* Parameters
+  * dir_containing_gratings (string) - A relative or absolute directory path to a directory containing gratings. Must not contain any other non grating files, or sub directories.
+  * intertrial_time (float) - Time between gratings in seconds. Will have <1 millisecond accuracy.
+  * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory ~/rpg/logs/
+
+* Returns:
+  * None
+  
+  
+### display_raw_randomly(dir_containing_raws, intertrial_time, logfile_name):
+
+Attempts to display each file in the directory `dir_containing_raws` as a raw. The order of display is a fixed but psudorandomised, i.e. the order will be the same every trial. See `_randomize_list` for details.
+
+The location of the log file is `~/rpg/logs/` . Raws are seperated by intertrial_time seconds of the background color set when Screen object created.
+
+This method is blocking, and will not return until all files in directory displayed.
+
+* Parameters:
+  * dir_containing_rawss (string) - A relative or absolute directory path to a directory containing raws. Must not contain any other non raw files, or sub directories.
+  * intertrial_time (float) - Time between raws in seconds. Will have <1 millisecond accuracy.
+  * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory ~/rpg/logs/
+
+* Returns:
+  * None
+  
+ ###  display_rand_grating_on_pulse(dir_containing_gratings, trigger_pin, logfile_name):
+
+Displays a psudorandom grating from the passed directory in response to a 3.3V signal to a GPIO pin. Gauranteed to display each grating in directory before playing gratings again. Will display gratings in a fixed order across sessions. Between gratings, displays Screen.background() shade. Function is blocking, but will return in response to a keystroke.
+
+* Paramaterss:
+  * dir_containing_gratings (string) - Defaults to `"rpglog.txt"`. A relative or absolute directory path to a directory containing gratings. Must not contain any other non grating files, or sub directories.
+  * trigger_pin (int) - Which trigger pin the raspberry pi listens on for the 3.3V pulse. Pin number is defined by WiringPi library.
+  * logfile_name (string) - Name of log file to write performance record to. Written into directory ~/rpg/logs/
+
+* Returns:
+  * None
+
+### display_rand_raw_on_pulse(dir_containing_raws, trigger_pin, logfile_name):
+
+Displays a psudorandom raw from the passed directory in response to a 3.3V signal to a GPIO pin. Gauranteed to display each raw in directory before playing gratings again. Will display raws in a fixed order across sessions. Between raws, displays Screen.background() shade. Function is blocking, but will return in response to a keystroke.
+
+* Paramaters:
+  * dir_containing_raws (string) - A relative or absolute directory path to a directory containing raws. Must not contain any other non grating files, or sub directories.
+  * trigger_pin (int) - Which trigger pin the raspberry pi listens on for the 3.3V pulse. Pin number is defined by WiringPi library.
+  * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory ~/rpg/logs/
+
+* Returns:
+  * None
+  
+### \_print_log(filename, file_type, file_displayed, perf):
+
+Internal function for print log file. Unlikely to be called unless you are using the `display_grating()` method directly and want to record its performance.
+ 
+* Parameters:
+  * filename (string) - Filename within `"~/rpg/logs/"` to write data to.
+  * file_type (string) - Annotation to the log, typically either `"raw"` or `"grating"`.
+  * perf (named tuple) -  The named tuple returned by `display_grating()` or `display_raw()`
+
+* Returns:
+  * None
+  
+### _randomize_list(self, lst):
+    
+Internal function for psudorandomizing gratings paths. Files paths are hashed with MD5 to generate a string, which is then sorted to give order. This achieves a psuedo random order that is fixed across sessions.
+
+If you require this to be truely random on every trial simply replace the contents of this method with:
+
+### close():
+
+Destroy the screen object, cleaning up its memory and restoring previous screen settings. Only necessary to be called if you are creating a new screen object within the same Python session, for instance if switching between resolutions.
+
+* Parameters:
+  * None
+  
+* Returns:
+  * None
+
+    import random
+    return random.shuffle(list)
+    
+* Parameters:
+  * list (list) - A list containing grating/raw path names, or any strings
+
+* Returns:
+  * A list of with the same elements as that passed in, shuffled, but in an order that is fixed between sessions
+  
+ """
+        """

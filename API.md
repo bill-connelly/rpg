@@ -1,26 +1,26 @@
 
 # Table of Contents
-  ## Functions
-  ### [rpg.build_grating()](#rpgbuild_gratingfilename-options)
-  ### [rpg.build_masked_grating()](#rpgbuild_masked_gratingfilename-options)
-  ### [rpg.build_gabor()](#rpgbuild_gaborfilename-options)
-  ### [rpg.build_list_of_gratings()](#rpgbuild_list_of_gratingsfunc_string-directory_path-options)
-  ### [rpg.convert_raw()](#rpgconvert_rawfilename-new_filename-n_frames-width-height-refreshes_per_frame)
-  ## Classes
-  ### [rpg.Screen()](#rpgscreenresolution-background)
-  #### Methods
-  #### [load_grating()](#load_gratingfilename)
-  #### [load_raw()](#load_rawfilename)
-  #### [display_grating()](#display_gratinggrating-trigger_pin)
-  #### [display_raw()](#display_rawraw-trigger_pin)
-  #### [display_greyscale()](#display_greyscalecolor)
-  #### [display_gratings_randomly()](#display_gratings_randomlydir_containing_gratings-intertrial_time-logfile_name)
-  #### [display_raw_randomly()](#display_raw_randomlydir_containing_raws-intertrial_time-logfile_name)
-  #### [display_rand_grating_on_pulse()](#display_rand_grating_on_pulsedir_containing_gratings-trigger_pin-logfile_name)
-  #### [display_rand_raw_on_pulse()](#display_rand_raw_on_pulsedir_containing_raws-trigger_pin-logfile_name)
-  #### [close()](#close)
-  #### [\_print_log()](#_print_logfilename-file_type-file_displayed-perf)
-  #### [\_randomize_list()](#_randomize_listself-list)
+## Functions
+  - ### [rpg.build_grating()](#rpgbuild_gratingfilename-options)
+  - ### [rpg.build_masked_grating()](#rpgbuild_masked_gratingfilename-options)
+  - ### [rpg.build_gabor()](#rpgbuild_gaborfilename-options)
+  - ### [rpg.build_list_of_gratings()](#rpgbuild_list_of_gratingsfunc_string-directory_path-options)
+  - ### [rpg.convert_raw()](#rpgconvert_rawfilename-new_filename-n_frames-width-height-refreshes_per_frame)
+## Classes
+  - ### [rpg.Screen()](#rpgscreenresolution-background)
+    * #### Methods
+    * #### [load_grating()](#load_gratingfilename)
+    *  #### [load_raw()](#load_rawfilename)
+    *  #### [display_grating()](#display_gratinggrating-trigger_pin)
+    *  #### [display_raw()](#display_rawraw-trigger_pin)
+    *  #### [display_greyscale()](#display_greyscalecolor)
+    *  #### [display_gratings_randomly()](#display_gratings_randomlydir_containing_gratings-intertrial_time-logfile_name)
+    *  #### [display_raw_randomly()](#display_raw_randomlydir_containing_raws-intertrial_time-logfile_name)
+    *  #### [display_rand_grating_on_pulse()](#display_rand_grating_on_pulsedir_containing_gratings-trigger_pin-logfile_name)
+    *  #### [display_rand_raw_on_pulse()](#display_rand_raw_on_pulsedir_containing_raws-trigger_pin-logfile_name)
+    *  #### [close()](#close)
+    *  #### [\_print_log()](#_print_logfilename-file_type-file_displayed-perf)
+    *  #### [\_randomize_list()](#_randomize_listself-list)
 
 
 ## rpg.build_grating(filename, options)

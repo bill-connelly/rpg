@@ -1,6 +1,6 @@
 
 # Table of Contents
-  [rpg.build_grating](#rpg.build_grating(filename, options))
+  [rpg.build_grating](#rpgbuild_gratingfilename-options)
 
 
 

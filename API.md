@@ -1,5 +1,6 @@
 
 # Table of Contents
+  [rpg.build_grating](#rpg.build_grating(filename, options))
 
 
 
@@ -193,7 +194,7 @@ This method is blocking, and will not return until all files in directory displa
 * Parameters
   * dir_containing_gratings (string) - A relative or absolute directory path to a directory containing gratings. Must not contain any other non grating files, or sub directories.
   * intertrial_time (float) - Time between gratings in seconds. Will have <1 millisecond accuracy.
-  * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory ~/rpg/logs/
+  * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory `~/rpg/logs/`.
 
 * Returns:
   * None
@@ -210,7 +211,7 @@ This method is blocking, and will not return until all files in directory displa
 * Parameters:
   * dir_containing_rawss (string) - A relative or absolute directory path to a directory containing raws. Must not contain any other non raw files, or sub directories.
   * intertrial_time (float) - Time between raws in seconds. Will have <1 millisecond accuracy.
-  * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory ~/rpg/logs/
+  * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory `~/rpg/logs/`.
 
 * Returns:
   * None
@@ -220,9 +221,9 @@ This method is blocking, and will not return until all files in directory displa
 Displays a psudorandom grating from the passed directory in response to a 3.3V signal to a GPIO pin. Gauranteed to display each grating in directory before playing gratings again. Will display gratings in a fixed order across sessions. Between gratings, displays Screen.background() shade. Function is blocking, but will return in response to a keystroke.
 
 * Paramaterss:
-  * dir_containing_gratings (string) - Defaults to `"rpglog.txt"`. A relative or absolute directory path to a directory containing gratings. Must not contain any other non grating files, or sub directories.
+  * dir_containing_gratings (string) - A relative or absolute directory path to a directory containing gratings. Must not contain any other non grating files, or sub directories.
   * trigger_pin (int) - Which trigger pin the raspberry pi listens on for the 3.3V pulse. Pin number is defined by WiringPi library.
-  * logfile_name (string) - Name of log file to write performance record to. Written into directory ~/rpg/logs/
+  * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory `~/rpg/logs/`.
 
 * Returns:
   * None
@@ -238,6 +239,16 @@ Displays a psudorandom raw from the passed directory in response to a 3.3V signa
 
 * Returns:
   * None
+  
+### close():
+
+Destroy the screen object, cleaning up its memory and restoring previous screen settings. Only necessary to be called if you are creating a new screen object within the same Python session, for instance if switching between resolutions.
+
+* Parameters:
+  * None
+  
+* Returns:
+  * None  
   
 ### \_print_log(filename, file_type, file_displayed, perf):
 
@@ -260,19 +271,10 @@ If you require this to be truely random on every trial simply replace the conten
       import random
       return random.shuffle(list)
       
+And then reinstall rpg.
+
 * Parameters:
   * list (list) - A list containing grating/raw path names, or any strings
 
 * Returns:
   * A list of with the same elements as that passed in, shuffled, but in an order that is fixed between sessions
-
-
-### close():
-
-Destroy the screen object, cleaning up its memory and restoring previous screen settings. Only necessary to be called if you are creating a new screen object within the same Python session, for instance if switching between resolutions.
-
-* Parameters:
-  * None
-  
-* Returns:
-  * None

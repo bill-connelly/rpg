@@ -136,6 +136,8 @@ Converts a raw video/image file saves as uint8: RGBRGBRGB... starting in the top
 
 * Returns:
   * None
+  
+---
 
 # rpg.Screen(resolution, background)
 

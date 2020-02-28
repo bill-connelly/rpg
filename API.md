@@ -257,6 +257,16 @@ Internal function for psudorandomizing gratings paths. Files paths are hashed wi
 
 If you require this to be truely random on every trial simply replace the contents of this method with:
 
+      import random
+      return random.shuffle(list)
+      
+* Parameters:
+  * list (list) - A list containing grating/raw path names, or any strings
+
+* Returns:
+  * A list of with the same elements as that passed in, shuffled, but in an order that is fixed between sessions
+
+
 ### close():
 
 Destroy the screen object, cleaning up its memory and restoring previous screen settings. Only necessary to be called if you are creating a new screen object within the same Python session, for instance if switching between resolutions.
@@ -266,15 +276,3 @@ Destroy the screen object, cleaning up its memory and restoring previous screen 
   
 * Returns:
   * None
-
-    import random
-    return random.shuffle(list)
-    
-* Parameters:
-  * list (list) - A list containing grating/raw path names, or any strings
-
-* Returns:
-  * A list of with the same elements as that passed in, shuffled, but in an order that is fixed between sessions
-  
- """
-        """

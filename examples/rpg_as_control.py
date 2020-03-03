@@ -19,11 +19,15 @@ import time
 #
 #
 #
-# If trivial changes are required to perform an experiemnt like this
+# If changes are required to perform an experiment like this
 #             _________
 # RPG   _____|         |______
 #
 # 3.3V  __|___________________
+#
+# Move the pin_out.off() on line 108 to line 103 (before 
+# time.sleep(delay) ). You may need to add time.sleep(0.001) 
+# between the on() and off() calls, if your pulse is too fast.
 
 
 

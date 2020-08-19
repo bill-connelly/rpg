@@ -21,11 +21,16 @@ from collections import namedtuple
 
 GratPerfRec = namedtuple("GratingPerformanceRecord",["mean_interframe","stddev_interframe","start_time"])
 
-GRAY = 127
-BLACK = 0
-WHITE = 255
-SINE = 1
-SQUARE = 0
+GRAY   = 127
+BLACK  = 0
+WHITE  = 255
+SINE   = 0b0001
+SQUARE = 0b0000
+
+#These are tags passed to the C architexture to specify the bits per pixel,
+#probably don't change them unless you're confident you know what you're doing!
+RGB888MODE =  0b0010
+RGB565MODE =  0b0000
 
 import _rpigratings as rpigratings
 
@@ -74,7 +79,7 @@ def build_grating(filename, options):
                               options["spac_freq"], options["temp_freq"],
                               options["contrast"], options["background"],
                               options["resolution"][0], options["resolution"][1],
-                              options["waveform"], 0, 0, 0, 0, 0)
+                              options["waveform"], 0, 0, 0, 0, 0, options["colormode"])
 
 def build_masked_grating(filename, options):
     """
@@ -119,7 +124,7 @@ def build_masked_grating(filename, options):
                               options["resolution"][0], options["resolution"][1],
                               options["waveform"], 0, options["percent_diameter"],
                               options["percent_center_left"], options["percent_center_top"],
-                              options["percent_padding"])
+                              options["percent_padding"], options["colormode"])
 
 def build_gabor(filename, options):
     """
@@ -163,7 +168,7 @@ def build_gabor(filename, options):
                               options["resolution"][0], options["resolution"][1],
                               options["waveform"], options["percent_sigma"], 0,
                               options["percent_center_left"], options["percent_center_top"],
-                              0)
+                              0, options["colormode"])
 
 
 
@@ -226,7 +231,7 @@ def build_list_of_gratings(func_string, directory_path, options):
 
     os.chdir(cwd)
 
-def convert_raw(filename, new_filename, n_frames, width, height, refreshes_per_frame):
+def convert_raw(filename, new_filename, n_frames, width, height, refreshes_per_frame, colormode = 16):
     """
     Converts a raw video/image file saves as uint8: RGBRGBRGB... starting
       in the top left pixel and proceeding rowwise, into a form readily 
@@ -245,18 +250,23 @@ def convert_raw(filename, new_filename, n_frames, width, height, refreshes_per_f
         be 2. On a 75 Hz monitor, 25 frames per second would be acheived by setting this
         to 3. If a still image is displayed, if you require it displayed for X seconds,
         and your monitor refresh rate is R Hz, then this value should be set to X * R.
-
+      colormode: number of bits per pixel; must be 16 or 24.
     Returns:
       None
     """
-
+    if colormode in {0, 16, "rgb565", "RGB565", "565", "16"}:
+        colormode = RGB565MODE
+    elif colormode in {1, 24, "24", "rgb888", "RGB888", "888"}:
+        colormode = RGB888MODE
+    else:
+        raise ValueError("colormode must be 16 or 24, not %s"%op["colormode"].__repr__)
     filename = os.path.expanduser(filename)
     new_filename = os.path.expanduser(new_filename)
-    rpigratings.convertraw(filename, new_filename, n_frames, width, height, refreshes_per_frame)
+    rpigratings.convertraw(filename, new_filename, n_frames, width, height, refreshes_per_frame,colormode)
 
 
 class Screen:
-    def __init__(self, resolution=(1280,720), background = 127):
+    def __init__(self, resolution=(1280,720), background = 127, colormode = 16):
         """
         A class encapsulating the raspberry pi's framebuffer,
           with methods to display drifting gratings and solid colors to
@@ -281,13 +291,21 @@ class Screen:
         Args:
           resolution: a tuple of the desired width of the display
             resolution as (width, height). Defaults to (1280,720).
-          background: value between0 and 255 for the background 
+          background: value between 0 and 255 for the background 
          """
         if (background < 0 or background > 255):
                 raise ValueError("Background must be between 0 and 255")
 
+        if colormode in {0, 16, "565", "rgb565", "RGB565", "16"}:
+                colormode = 0
+        elif colormode in {1, 24, "888", "rgb888", "RGB888", "24"}:
+                colormode = 2
+        else:
+                raise ValueError("Colormode must be 16 or 24, not %s"%colormode.__repr__)
+
         self.background = background
-        self.capsule = rpigratings.init(resolution[0],resolution[1])
+        self.capsule = rpigratings.init(resolution[0],resolution[1], colormode)
+        self.colormode = colormode
 
 
     def load_grating(self,filename):
@@ -393,7 +411,7 @@ class Screen:
         if (color<0 or color>255):
                 self.close()
                 raise ValueError("Color must be between each between 0 and 255.")
-        rpigratings.display_color(self.capsule,color,color,color)
+        rpigratings.display_color(self.capsule,color,color,color,self.colormode)
 
     def display_gratings_randomly(self, dir_containing_gratings, intertrial_time, logfile_name="rpglog.txt"):
         """
@@ -421,20 +439,18 @@ class Screen:
         """
 
         dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
-        path_to_gratings = [dir_containing_gratings + "/" + file for file in os.listdir(dir_containing_gratings)]
-        randomized_path = self._randomize_list(path_to_gratings)
-
         gratings = []
         print("Loading gratings...")
-        for file in randomized_path:
-            gratings.append(self.load_grating(file))
+        for file in os.listdir(dir_containing_gratings):
+            gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
+        randomized_gratings = self._randomize_grating_list(gratings)
 
-        print("Displaying in order of: " + str([grating.filename.split("/")[-1] for grating in gratings ] ))
+        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
 
-        for grating in gratings:
-            perf = self.display_grating(grating)
+        for grating in randomized_gratings:
+            perf = self.display_grating(grating[0])
             self.display_greyscale(self.background)
-            self._print_log(logfile_name, "Grating", grating.filename, perf)
+            self._print_log(logfile_name, "Grating", grating[1], perf)
             t.sleep(intertrial_time)
 
 
@@ -464,20 +480,18 @@ class Screen:
         """
 
         dir_containing_raws = os.path.expanduser(dir_containing_raws)
-        path_to_raws = [dir_containing_raws + "/" + file for file in os.listdir(dir_containing_raws)]
-        randomized_path = self._randomize_list(path_to_raws)
-
         raws = []
         print("Loading raws...")
-        for file in randomized_path:
-            raws.append(self.load_raw(file))
+        for file in os.listdir(dir_containing_raws):
+            raws.append((self.load_raw(dir_containing_raws + "/" + file),dir_containing_raws + "/" + file))
+        randomized_raws = self._randomize_grating_list(raws)
 
-        print("Displaying in order of: " + str([raw.filename.split("/")[-1] for raw in raws ] ))
+        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_rawss ] ))
 
-        for raw in raws:
-            perf = self.display_raw(raw)
+        for raw in randomized_raws:
+            perf = self.display_raw(raw[0])
             self.display_greyscale(self.background)
-            self._print_log(logfile_name, "Raw", raw.filename, perf)
+            self._print_log(logfile_name, "Raw", raw[1], perf)
             t.sleep(intertrial_time)
 
 
@@ -506,27 +520,23 @@ class Screen:
         self.display_greyscale(self.background)
 
         dir_containing_gratings = os.path.expanduser(dir_containing_gratings)
-        path_to_gratings = [dir_containing_gratings + "/" + file for file in os.listdir(dir_containing_gratings)]
-        randomized_path = self._randomize_list(path_to_gratings)
-
         gratings = []
         print("Loading gratings...")
-        for file in randomized_path:
-            gratings.append(self.load_grating(file))
-
-        print("Displaying in order of: " + str([grating.filename.split("/")[-1] for grating in gratings ] ))
+        for file in os.listdir(dir_containing_gratings):
+            gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
+        randomized_gratings = self._randomize_grating_list(gratings)
+        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
-
         n = 0
         while True:
-            perf = self.display_grating(gratings[n], trigger_pin)
+            perf = self.display_grating(randomized_gratings[n][0], trigger_pin)
             self.display_greyscale(self.background)
             if perf is None:
                 break
-            self._print_log(logfile_name, "Grating", gratings[n].filename, perf)
+            self._print_log(logfile_name, "Grating", randomized_gratings[n][1], perf)
             n += 1
-            if n >= len(gratings):
+            if n >= len(randomized_gratings):
                 n = 0
 
         print("Waiting for pulses ended")
@@ -556,27 +566,23 @@ class Screen:
         self.display_greyscale(self.background)
 
         dir_containing_raws = os.path.expanduser(dir_containing_raws)
-        path_to_raws = [dir_containing_raws + "/" + file for file in os.listdir(dir_containing_raws)]
-        randomized_path = self._randomize_list(path_to_raws)
-
         raws = []
         print("Loading raws...")
-        for file in randomized_path:
-            raws.append(self.load_raw(file))
-
-        print("Displaying in order of: " + str([raw.filename.split("/")[-1] for raw in raws ] ))
+        for file in os.listdir(dir_containing_raws):
+            raws.append((self.load_grating(dir_containing_raws + "/" + file),dir_containing_raws + "/" + file))
+        randomized_raws = self._randomize_grating_list(raws)
+        print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_raws ] ))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
-
         n = 0
         while True:
-            perf = self.display_raw(raws[n], trigger_pin)
+            perf = self.display_raw(randomized_raws[n][0], trigger_pin)
             self.display_greyscale(self.background)
             if perf is None:
                 break
-            self._print_log(logfile_name, "Raw", raws[n].filename, perf)
+            self._print_log(logfile_name, "Raw", randomized_raws[n][1], perf)
             n += 1
-            if n >= len(raws):
+            if n >= len(randomized_raws):
                 n = 0
 
         print("Waiting for pulses ended")
@@ -586,7 +592,7 @@ class Screen:
     def _print_log(self, filename, file_type, file_displayed, perf):
         """
         Internal function for print log file
- 
+        
         Args:
           filename: string of file displayed
           file_type: string of whether the file was a raw or a grating
@@ -595,47 +601,44 @@ class Screen:
         Returns:
           None
         """
-
         path_of_logfile = os.path.expanduser("~/rpg/logs/") + filename
         with open(path_of_logfile, "a") as file:
             file.write("%s: \t %s \t Displayed starting at (unix time): %d \t Average frame duration (micros): %.2f \t  Std Dev of frame duration(FPS): %.2f \n" 
                 %(file_type, file_displayed, perf.start_time, perf.mean_interframe, perf.stddev_interframe))
 
-    def _randomize_list(self, lst):
+    def _randomize_grating_list(self, gratings):
         """
-        Internal function for psudorandomizing gratings paths. Files paths are hashed
+        Internal function for psudorandomizing gratings. Files paths are hashed
         with MD5 to generate a string, which is then sorted to give order. This
         achieves a psuedo random order that is fixed across sessions.
-
+        
         Args:
-          list: list containing grating path names, or any strings
-
+          gratings: list containing grating path names
+        
         Returns:
           list of grating path names psuedorandomzied
         """
-
-        hashed_list = [ hashlib.md5(el.encode()).hexdigest() for el in lst]
-        labelled_hashes = enumerate(hashed_list)
+        hashed_gratings = [ hashlib.md5(grating[1].encode()).hexdigest() for grating in gratings]
+        labelled_hashes = enumerate(hashed_gratings)
         labelled_hashes = [ (x[1], x[0]) for x in labelled_hashes ]
         sorted_hashes = sorted(labelled_hashes)
+        randomized_gratings = [] 
 
-        randomized_gratings = []
         for el in sorted_hashes:
-            randomized_gratings.append( lst[el[1]] )
+            randomized_gratings.append( gratings[el[1]] )
         return randomized_gratings
 
     def close(self):
         """
         Destroy this object, cleaning up its memory and restoring previous
         screen settings.
-
+        
         Args:
           None
-
+          
         Returns:
           None
         """
-
         print("Screen object has been closed. You will need to make a new one")
         rpigratings.close_display(self.capsule)
         del self
@@ -646,25 +649,23 @@ class Screen:
 
 
 class Grating:
-	def __init__(self, master, filename):
-		if type(master).__name__ != "Screen":
-			raise ValueError("master must be a Screen instance")
-		self.master = master
-		self.filename = filename
-		self.capsule = rpigratings.load_grating(master.capsule,filename)
-	def __del__(self):
-		rpigratings.unload_grating(self.capsule)
+    def __init__(self, master, filename):
+        if type(master).__name__ != "Screen":
+            raise ValueError("master must be a Screen instance")
+        self.master = master
+        self.capsule = rpigratings.load_grating(master.capsule,filename)
+    def __del__(self):
+        rpigratings.unload_grating(self.capsule)
 
 
 class Raw:
-	def __init__(self, master, filename):
-		if type(master).__name__ != "Screen":
-			raise ValueError("master must be a Screen instance")
-		self.master = master
-		self.filename = filename
-		self.capsule = rpigratings.load_raw(filename)
-	def __del__(self):
-		rpigratings.unload_raw(self.capsule)
+    def __init__(self, master, filename):
+        if type(master).__name__ != "Screen":
+            raise ValueError("master must be a Screen instance")
+        self.master = master
+        self.capsule = rpigratings.load_raw(filename)
+    def __del__(self):
+        rpigratings.unload_raw(self.capsule)
 
 def _parse_options(options):
     """
@@ -742,4 +743,13 @@ def _parse_options(options):
     else:
         op["percent_padding"] = 0
 
+    if "colormode" in op:
+        if op["colormode"] in {0, 16, "rgb565", "RGB565", "565", "16"}:
+            op["colormode"] = RGB565MODE
+        elif op["colormode"] in {1, 24, "24", "rgb888", "RGB888", "888"}:
+            op["colormode"] = RGB888MODE
+        else:
+            raise ValueError("options['colormode'] must be 16 or 24, not %s"%op["colormode"].__repr__)
+    else:
+        op[colormode] = RBG565MODE
     return op

@@ -45,7 +45,8 @@ Create a raw animation file of a drifting grating. Saves file to hard disc. This
             "contrast": 1      #maximum contrast  
             "background": 127,   #  
             "resolution": (1280, 720)   #resolution of gratings. Must match Screen()  
-            "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)  
+            "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
+            "colormode": 16        #bits per pixel, must be 16 or 24  
 * Returns:
   * None
 
@@ -75,6 +76,7 @@ Create a raw animation file of a drifting grating with a circular mask. Saves fi
         "background": 127,   #  
         "resolution": (1280, 720)   #resolution of gratings. Must match Screen()  
         "waveform": rpg.SINE #rpg.SQUARE (square wave) or rpg.SINE (sine wave)
+        "colormode": 16        #bits per pixel, must be 16 or 24  
 
 * Returns:  
   * None
@@ -104,6 +106,7 @@ Create a raw animation file of a drifting gabor patch. Saves file to hard disc. 
         "background": 127,   #shade of the background   
         "resolution": (1280, 720)   #resolution of gratings. Must match Screen()  
         "waveform": rpg.SINE #rpg.SQUARE is not allowed for gabor
+        "colormode": 16        #bits per pixel, must be 16 or 24  
 
 * Returns:  
     * None
@@ -133,6 +136,7 @@ Converts a raw video/image file saves as uint8: RGBRGBRGB... starting in the top
   * width (int) - The width of the original file in pixels. Cannot be used to resize images/movie
   * height (int) - The height of the original file in pixels. Cannot be used to resize image/movie
   * refreshes_per_frame (int) - The number of monitor refreshes to display each frame for. For a movie to display at 30 frames per second, on a 60 Hz monitor, this would be 2. On a 75 Hz monitor, 25 frames per second would be acheived by setting this to 3. If a still image is displayed, if you require it displayed for X seconds, and your monitor refresh rate is R Hz, then this value should be set to X * R.
+  * colormode (int) - THe number of bits per pixel, 16 or 24. Defaults to 16.
 
 * Returns:
   * None
@@ -147,7 +151,8 @@ ONLY ONE INSTANCE OF THIS OBJECT SHOULD EXIST AT ANY ONE TIME. Otherwise both ob
 
 * Parameters:
   * resolution (int tuple) - Defaults to (1280,720). a tuple of the desired width of the display  resolution as (width, height).  
-  * background (int) - Defaults to 127. value between 0 and 255 for the background. This is the shade that will display between animations and will NOT change the background color of any animation while it plays.   
+  * background (int) - Defaults to 127. value between 0 and 255 for the background. This is the shade that will display between animations and will NOT change the background color of any animation while it plays. 
+  * colormode (int) - THe number of bits per pixel, 16 or 24. Defaults to 16.  
 
 * Returns:
   * Screen object

@@ -18,6 +18,7 @@ class InstallWrapper(install):
   def run(self):
     self._edit_bashrc()
     self._make_logdir()
+    self._edit_config()
     install.run(self)
 
   def _make_logdir(self):
@@ -29,6 +30,23 @@ class InstallWrapper(install):
         print("Install failed")
         print("Try running as sudo")
         return
+
+  def _edit_config(self):
+    try:
+      with open('/boot/config.txt', 'r') as f:
+        config = f.read()
+        config = config.replace('\ndtoverlay=vc4-fkms-v3d', '\n#dtoverlay=vc-fkms-v3d', 1)
+
+      with open('/boot/config.txt', 'w') as f:
+        f.write(config)
+
+    except PermissionError:
+      print('Install Failed')
+      print('You must run install with sudo')
+    except FileNotFoundError:
+      print('Config file not found')
+      print('Your config file is not in /boot/config.txt')
+
 
   def _edit_bashrc(self):
     try:
@@ -55,7 +73,7 @@ class InstallWrapper(install):
         print("Try running install as sudo")
 
 setup(name='rpg',
-      version='0.1.0',
+      version='0.1.1',
       packages = ['rpg'],
       description='A drifting grating implimentation',
       ext_modules=[rpygrating_module],

@@ -21,10 +21,10 @@ On line 28 the code will say `#define DEGREES_SUBTENDED 80` change the number `8
 
 ## Install
 
-Confirm you are in the rpg directory (i.e. the directory with setup.py) and install
+Confirm you are in the rpg directory (i.e. the directory with setup.py) and install. You must run install with sudo.
 ```
     $ cd ~/rpg
-    $ pip3 install .
+    $ sudo pip3 install .
 ```
 ## Run
 

@@ -751,5 +751,5 @@ def _parse_options(options):
         else:
             raise ValueError("options['colormode'] must be 16 or 24, not %s"%op["colormode"].__repr__)
     else:
-        op[colormode] = RBG565MODE
+        op["colormode"] = RGB565MODE
     return op

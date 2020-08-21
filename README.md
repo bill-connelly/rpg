@@ -26,11 +26,18 @@ Confirm you are in the rpg directory (i.e. the directory with setup.py) and inst
     $ cd ~/rpg
     $ sudo pip3 install .
 ```
+After installing, you should restart the Raspberry Pi. If you are using a Raspberry Pi 4, this is essential.
+```
+    $ sudo reboot
+````
+
 ## Run
 
 RPG is designed to run in response to 3.3 volt triggers from other hardware, or in a free running mode, where it will provide a 3.3V output when it displays each frame. There are several examples scripts in the examples folder. But briefly, to confirm that RPG has been install successfully, and to show its functionality, the following lines of code can be run.
 
-First open python
+We need to leave the graphical user interface, to allow RPG full access to the display. So hit Ctrl + Alt + F1
+
+Then open python
 
 ```
     $ python3

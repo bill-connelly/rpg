@@ -620,6 +620,7 @@ int build_grating(char * filename, double duration, double angle, double sf, dou
 	return 0;
 }
 void* load_grating(char* filename, fb_config fb0){
+	printf("Started Loading");
 	int page_size = getpagesize();
 	int bytes_already_read = 0;
 	int read_size,frames;
@@ -636,6 +637,7 @@ void* load_grating(char* filename, fb_config fb0){
 		perror("From mmap for header access");
 		exit(1);
 	}
+	printf("MMAP started");
 	frames = header->frames_per_cycle;
 	int file_fps = header->frames_per_second;
 	int refresh_rate = get_refresh_rate();
@@ -643,17 +645,18 @@ void* load_grating(char* filename, fb_config fb0){
 		printf("File generated at %d FPS, but monitor running at %d HZ. This will cause inaccurate timing \n", file_fps, refresh_rate);
 	}
 	int file_size = frames*fb0.size + sizeof(fileheader_t);
+	printf("refreshrate calculation completed");
 	//clean up the header from the heap
 	munmap(header, sizeof(fileheader_t));
 	//now copy file_size bytes across using mmap
 	uint8_t *frame_data;
 	frame_data = malloc(file_size);
+	printf("malloc completed");
 	while(bytes_already_read < file_size){
 		read_size = 20000*page_size;
 		if(read_size + bytes_already_read >= file_size){
 			read_size = file_size - bytes_already_read;
 		}
-		printf("Bytes read: %d of %d\nNow reading next %d bytes\n",bytes_already_read,file_size,read_size);
 		void* mmap_start = mmap(NULL, read_size,PROT_READ,MAP_PRIVATE,
 						filedes,bytes_already_read);
 		if(mmap_start == MAP_FAILED){
@@ -665,7 +668,6 @@ void* load_grating(char* filename, fb_config fb0){
 		bytes_already_read += read_size;
 		munmap(mmap_start,read_size);
 	}
-	printf("Whole file read, closing filedescriptor\n");
 	close(filedes);
 	return (void*) frame_data;
 }

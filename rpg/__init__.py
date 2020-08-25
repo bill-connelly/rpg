@@ -306,7 +306,7 @@ class Screen:
         self.background = background
         self.capsule = rpigratings.init(resolution[0],resolution[1], colormode)
         self.colormode = colormode
-
+        self.isopen = True
 
     def load_grating(self,filename):
         """
@@ -639,14 +639,16 @@ class Screen:
         Returns:
           None
         """
-        print("Screen object has been closed. You will need to make a new one")
-        rpigratings.close_display(self.capsule)
-        del self
+        if self.isopen:
+            rpigratings.close_display(self.capsule)
+            self.isopen = False
 
     def __del__(self):
         self.close()
-
-
+    def __enter__(self):
+        return self
+    def __exit__(self,exception_type,exception_value,traceback):
+        self.close()
 
 class Grating:
     def __init__(self, master, filename):

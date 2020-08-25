@@ -177,3 +177,9 @@ MEMORY MANAGEMENT
     only requires half the frames, as the second cycle is identical to the first. However, gratings
     where the temporal frequency is less than the duration will require every frame within it 
     generated, and stored to memory. This may lead to crashes if many of these are loaded at once.
+
+DUAL MONITORS
+    The Raspberry Pi 4 has physical support for dual monitors. However, RPG offers no explict
+    support for dual monitors. Behaviour with dual monitors is completely untested and likely
+    to fail. If you want to use two monitors, use two Raspberry Pis running independently. This
+    with insure all timing pulses are as accurate as can be.

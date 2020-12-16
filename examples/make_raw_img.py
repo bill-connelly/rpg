@@ -24,14 +24,14 @@ flatim[1::3] = face[:,:,1].flatten()
 flatim[2::3] = face[:,:,2].flatten()
 
 #save the data to drive in this format, making doubly sure to save it as uint8
-with open("/home/pi/test/simpleraw.raw", mode="wb") as fh:
+with open("simpleraw.raw", mode="wb") as fh:
     flatim.astype(np.uint8).tofile(fh)
 
 #use RPG to convert it
-rpg.convert_raw("~/test/simpleraw.raw", "~/test/convertedsimpleraw.raw", 1, 1024, 768, 100)
+rpg.convert_raw("simpleraw.raw", "simpleraw_c.raw", 1, 1024, 768, 100)
 
 #Display it when done, just to be sure.
-myscreen = rpg.Screen(resolution=(1024,768))
-raw = myscreen.load_raw("~/test/convertedsimpleraw.raw")
-myscreen.display_raw(raw)
+with rpg.Screen(resolution=(1024,768)) as myscreen:
+  raw = myscreen.load_raw("simpleraw_c.raw")
+  myscreen.display_raw(raw)
 

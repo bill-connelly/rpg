@@ -47,6 +47,8 @@ typedef struct {
 	unsigned int orig_height; //the screen settings so they
 	unsigned int orig_depth;  //can be reset at program termination.
 	int error;
+	int current_buffer;
+	int testing_var;
 } fb_config;
 
 typedef struct {
@@ -243,10 +245,10 @@ employ the raspberry pi's mailbox property interface to facilitate
 communciation with the videocore. For more information, refer to
 github.com/raspberrypi/firmware/wiki/Mailbox-property-interface*/
 
-void flip_buffer(int buffer_num, fb_config fb0){
+void flip_buffer(fb_config* fb0){
 	/* Flip the front- and back-buffers in the double-buffering
 	system */
-
+	fb0->current_buffer = !fb0->current_buffer;
 	int fd = open("/dev/vcio",O_RDWR|O_SYNC);
 	if(fd == -1){
 		perror("VCIO OPEN ERROR: ");
@@ -265,8 +267,8 @@ void flip_buffer(int buffer_num, fb_config fb0){
 	0
 	};
 	property[0] = 8*sizeof(property[0]);
-	if(buffer_num != 0){
-		property[6] = fb0.height;
+	if(fb0->current_buffer != 0){
+		property[6] = fb0->height;
 	}
 	//send request via property interface using ioctl
 
@@ -775,7 +777,7 @@ int convert_raw(char* filename, char* new_filename, int n_frames, int width, int
 	return 0;
 }
 
-double* display_raw(void *frame_data, fb_config fb0, int trig_pin, int colormode) {
+double* display_raw(void *frame_data, fb_config* fb0, int trig_pin, int colormode) {
 
 	pinMode(1, OUTPUT);
 	digitalWrite(1, LOW);
@@ -792,8 +794,8 @@ double* display_raw(void *frame_data, fb_config fb0, int trig_pin, int colormode
 	uint24_t * frame_data_24 = frame_data;
 	uint16_t * frame_data_16 = frame_data;
 
-	uint24_t * write_loc_24 = (uint24_t *)(fb0.map) + fb0.width*fb0.height;
-	uint16_t * write_loc_16 = (uint16_t *)(fb0.map) + fb0.width*fb0.height;
+	uint24_t * write_loc_24 = (uint24_t *)(fb0->map) + fb0->width*fb0->height;
+	uint16_t * write_loc_16 = (uint16_t *)(fb0->map) + fb0->width*fb0->height;
 	int t, buffer, pixel, clock_status, waits, pixel_size;
 	if (colormode == RGB888MODE){pixel_size = sizeof(uint24_t);    }
 	else                        {pixel_size = sizeof(uint16_t);    }
@@ -813,29 +815,29 @@ double* display_raw(void *frame_data, fb_config fb0, int trig_pin, int colormode
 		}
 
 		buffer = (t+1)%2;
-		for(pixel = 0; pixel < fb0.width*fb0.height; pixel++) {
+		for(pixel = 0; pixel < fb0->width*fb0->height; pixel++) {
 			if(colormode == RGB888MODE){
-				*write_loc_24 = frame_data_24[(t*fb0.size/pixel_size)+pixel];
+				*write_loc_24 = frame_data_24[(t*fb0->size/pixel_size)+pixel];
 				write_loc_24++;
 			}else{
-				*write_loc_16 = frame_data_16[(t*fb0.size/pixel_size)+pixel];
+				*write_loc_16 = frame_data_16[(t*fb0->size/pixel_size)+pixel];
 				write_loc_16++;
 			}
 		}
-		flip_buffer(buffer, fb0);
+		flip_buffer(fb0);
 		for (waits = 0; waits < refresh_per_frame; waits++) {
-			ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
+			ioctl(fb0->framebuffer, FBIO_WAITFORVSYNC, &dummy);
 		}
 		if (t != 0) {
 			timings[t-1] = cmp_times(frame_end, frame_start);
 		}
 		if(!buffer){
 			digitalWrite(1, LOW);
-			write_loc_24 = fb0.map + 3*fb0.width*fb0.height;
-			write_loc_16 = fb0.map + 2*fb0.width*fb0.height;
+			write_loc_24 = fb0->map + 3*fb0->width*fb0->height;
+			write_loc_16 = fb0->map + 2*fb0->width*fb0->height;
 		} else {
-			write_loc_24 = fb0.map;
-			write_loc_16 = fb0.map;
+			write_loc_24 = fb0->map;
+			write_loc_16 = fb0->map;
 			digitalWrite(1, HIGH);
 		}
 	}
@@ -844,7 +846,7 @@ double* display_raw(void *frame_data, fb_config fb0, int trig_pin, int colormode
 	return frame_duration_mean;
 }
 
-double* display_grating(void* frame_data, fb_config fb0, int trig_pin, int colormode){
+double* display_grating(void* frame_data, fb_config* fb0, int end_with, int trig_pin, int colormode){
 
 	pinMode(1, OUTPUT);
 	digitalWrite(1, LOW);
@@ -862,10 +864,10 @@ double* display_grating(void* frame_data, fb_config fb0, int trig_pin, int color
 	uint24_t * frame_data_24 = frame_data;
 	uint16_t * frame_data_16 = frame_data;
 
-	uint24_t * write_loc_24 = (uint24_t *)(fb0.map) + fb0.width*fb0.height;
-	uint16_t * write_loc_16 = (uint16_t *)(fb0.map) + fb0.width*fb0.height;
+	uint24_t * write_loc_24 = (uint24_t *)(fb0->map) + fb0->width*fb0->height;
+	uint16_t * write_loc_16 = (uint16_t *)(fb0->map) + fb0->width*fb0->height;
 
-	int t, buffer, pixel, frame, clock_status, pixel_size;
+	int t, pixel, frame, clock_status, pixel_size;
 	if (colormode == RGB888MODE){pixel_size = sizeof(uint24_t);    }
 	else                        {pixel_size = sizeof(uint16_t);    }
 
@@ -884,31 +886,32 @@ double* display_grating(void* frame_data, fb_config fb0, int trig_pin, int color
 		}
 
 		frame = t%(header->frames_per_cycle);
-		buffer = (t+1)%2;
-		for(pixel = 0; pixel<fb0.width*fb0.height; pixel++){
+		if(!fb0->current_buffer){
+			write_loc_24 = fb0->map + 3*fb0->width*fb0->height;
+			write_loc_16 = fb0->map + 2*fb0->width*fb0->height;
+		} else {
+			write_loc_24 = fb0->map;
+			write_loc_16 = fb0->map;
+		}
+		for(pixel = 0; pixel<fb0->width*fb0->height; pixel++){
 			if(colormode == RGB888MODE){
-				*write_loc_24 = frame_data_24[(frame*fb0.size/pixel_size)+pixel];
+				*write_loc_24 = frame_data_24[(frame*fb0->size/pixel_size)+pixel];
 				write_loc_24++;
 			}else{
-				*write_loc_16 = frame_data_16[(frame*fb0.size/pixel_size)+pixel];
+				*write_loc_16 = frame_data_16[(frame*fb0->size/pixel_size)+pixel];
 				write_loc_16++;
 			}
 		}
-		flip_buffer(buffer, fb0);
-		ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
-
+		if(t==0){
+			ioctl(fb0->framebuffer, FBIO_WAITFORVSYNC, &dummy);
+		}
+		flip_buffer(fb0);
+		ioctl(fb0->framebuffer, FBIO_WAITFORVSYNC, &dummy);
+		digitalWrite(1,HIGH);
+		usleep(2000);
+		digitalWrite(1,LOW);
 		if (t != 0) {
 			timings[t-1] = cmp_times(frame_end, frame_start);
-		}
-
-		if(!buffer){
-			digitalWrite(1, LOW);
-			write_loc_24 = fb0.map + 3*fb0.width*fb0.height;
-			write_loc_16 = fb0.map + 2*fb0.width*fb0.height;
-		} else {
-			write_loc_24 = fb0.map;
-			write_loc_16 = fb0.map;
-			digitalWrite(1, HIGH);
 		}
 	}
 	*frame_duration_mean = mean_long(timings, n_frames-1);
@@ -926,18 +929,21 @@ int unload_raw(uint16_t* raw_data) {
 	return 0;
 }
 
-int display_color(fb_config fb0,int buffer, uint16_t color_16, uint24_t color_24, int colormode){
+int display_color(fb_config* fb0, uint16_t color_16, uint24_t color_24, int colormode){
+	__u32 dummy = 0;
 	uint16_t *write_loc_16;
 	uint24_t *write_loc_24;
 	int pixel;
-	if(!buffer){
-		write_loc_24 = fb0.map + 3*fb0.width*fb0.height;
-		write_loc_16 = fb0.map + 2*fb0.width*fb0.height;
+	if(!fb0->current_buffer){
+		write_loc_24 = fb0->map + 3*fb0->width*fb0->height;
+		write_loc_16 = fb0->map + 2*fb0->width*fb0->height;
 	} else {
-		write_loc_24 = fb0.map;
-		write_loc_16 = fb0.map;
+		write_loc_24 = fb0->map;
+		write_loc_16 = fb0->map;
 	}
-	for(pixel = 0; pixel<fb0.width*fb0.height; pixel++){
+//	ioctl(fb0->framebuffer, FBIO_WAITFORVSYNC, &dummy);
+
+	for(pixel = 0; pixel<fb0->width*fb0->height; pixel++){
 		if(colormode == RGB888MODE){
 			*write_loc_24 = color_24;
 			write_loc_24++;
@@ -946,7 +952,9 @@ int display_color(fb_config fb0,int buffer, uint16_t color_16, uint24_t color_24
 			write_loc_16++;
 		}
 	}
-	flip_buffer(buffer,fb0);
+//	ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
+
+	flip_buffer(fb0);
 	return 0;
 }
 
@@ -979,6 +987,8 @@ fb_config init(int width, int height, int colormode){
 	wiringPiSetup();
 
 	fb_config fb0;
+	fb0.current_buffer = 0;
+	fb0.testing_var = 0;
 	//To determine original width and height
 	//a mailbox property interface request is
 	//performed.
@@ -1067,13 +1077,16 @@ fb_config init(int width, int height, int colormode){
 	return fb0;
 }
 
-int close_display(fb_config fb0){
-	munmap(fb0.map,2*fb0.size);
+int close_display(fb_config* fb0){
+	if(fb0->current_buffer==1){
+		flip_buffer(fb0);
+	}
+	munmap(fb0->map,2*fb0->size);
 	char fbset_str[80];
 	sprintf(fbset_str,
 		"fbset -xres %d -yres %d -vxres %d -vyres %d -depth %d",
-		fb0.orig_width, fb0.orig_height, fb0.orig_width, fb0.orig_height,
-		fb0.orig_depth);
+		fb0->orig_width, fb0->orig_height, fb0->orig_width, fb0->orig_height,
+		fb0->orig_depth);
 	if(system(fbset_str)){
 		PyErr_SetString(PyExc_OSError,"System call to reset resolution (via fbset subroutine) failed");
 		return 1;
@@ -1133,8 +1146,7 @@ static PyObject* py_displaycolor(PyObject* self, PyObject* args){
     uint16_t color_16 = rgb_to_uint(r,g,b);
     uint24_t color_24 = rgb_to_uint_24bit(r,g,b);
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
-    display_color(*fb0_pointer,1,color_16,color_24,colormode);
-    display_color(*fb0_pointer,0,color_16,color_24,colormode);
+    display_color(fb0_pointer,color_16,color_24,colormode);
     Py_RETURN_NONE;
 }
 
@@ -1216,8 +1228,8 @@ static PyObject* py_unloadraw(PyObject* self, PyObject* args) {
 static PyObject* py_displaygrating(PyObject* self, PyObject* args){
     PyObject* fb0_capsule;
     PyObject* grating_capsule;
-    int trig_pin;
-    if (!PyArg_ParseTuple(args, "OOi", &fb0_capsule,&grating_capsule,&trig_pin)) {
+    int end_with, trig_pin;
+    if (!PyArg_ParseTuple(args, "OOii", &fb0_capsule,&grating_capsule,&end_with,&trig_pin)) {
         return NULL;
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
@@ -1233,7 +1245,7 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
         return NULL;
     }
     int start_time = time(NULL);
-    double* grat_info = display_grating(grating_data,*fb0_pointer,trig_pin,colormode);
+    double* grat_info = display_grating(grating_data,fb0_pointer,end_with,trig_pin,colormode);
     if (grat_info == NULL) {
         free(grat_info);
         Py_RETURN_NONE;
@@ -1264,7 +1276,7 @@ static PyObject* py_displayraw(PyObject* self, PyObject* args){
         colormode = RGB565MODE;
     }
     int start_time = time(NULL);
-    float* raw_info = display_raw(raw_data, *fb0_pointer, trig_pin, colormode);
+    float* raw_info = display_raw(raw_data, fb0_pointer, trig_pin, colormode);
     if (raw_info == 0) {
         free(raw_info);
         Py_RETURN_NONE;
@@ -1281,7 +1293,7 @@ static PyObject* py_closedisplay(PyObject* self, PyObject* args){
         return NULL;
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
-    if(close_display(*fb0_pointer)){
+    if(close_display(fb0_pointer)){
         return NULL;
     }
     Py_DECREF(fb0_capsule);

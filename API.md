@@ -200,12 +200,13 @@ Displays the passed raw object (raw objects are loaded with the Screen.load_raw 
 * Returns:
   * Performance record as named tuple with the fields fields mean_interframe, stddev_interframe and start_time.
   
-### display_greyscale(color):
+### display_greyscale(color, blocking):
  
 Fill the screen with a solid color until something else is displayed to the screen. 
 
 * Parameters:
   * color (int) - Value between 0 and 255.
+  * blocking (bool) - Defaults to True. Decides whether the function is blocking until data is displayed for one frame. We can not think of any reason why you would want to set blocking to False, and the options is available for internal use.  
         
 * Returns:
   * None

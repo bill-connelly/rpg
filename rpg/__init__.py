@@ -408,6 +408,11 @@ class Screen:
 
         Args:
           color: Value between 0 and 255.
+          blocking: True or False. When blocking is true, function will not return
+            unless the frame has been displayed for one frame.  With blocking set
+            to False, function returns after data written to frame buffer, meaning that
+            subsequent functions which write to frame buffer could overwrite the color
+            information BEFORE it is desplayed.
 
         Returns:
           None
@@ -433,8 +438,9 @@ class Screen:
           dir_containing_gratings: A relative or absolute directory path
             to a directory containing gratings. Must not contain any other 
             non grating files, or sub directories.
-          intertrial_time: Time between gratings in seconds. Will have 
-            ~1 millisecond accuracy
+          intertrial_time: Time between gratings in seconds. Accuracy limited by
+            monitor refresh rate. If intertrial time is set to X seconds, the true
+            intertrial time may be anywhere from X to X + 1/[refresh rate] seconds
           logfile_name: Name of log file to write performance record to.
             written into directory ~/rpg/logs/
 

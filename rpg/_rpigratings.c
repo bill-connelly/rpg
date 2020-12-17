@@ -57,6 +57,8 @@ typedef struct {
 	uint16_t temporal_frequency;
 	uint16_t frames_per_second;
 	uint16_t n_frames;
+        uint16_t width;
+        uint16_t height;
 	uint16_t _padding;
 }fileheader_t;
 
@@ -589,6 +591,8 @@ int build_grating(char * filename, double duration, double angle, double sf, dou
 	header.n_frames = fps * duration;
 	header.spacial_frequency = (uint16_t)(sf);
 	header.temporal_frequency = (uint16_t)(tf);
+	header.width = (uint16_t)(width);
+	header.height = (uint16_t)(height);
 	fwrite(&header,sizeof(fileheader_t),1,file);
 	int t, clock_status;
 	struct timespec time1, time2;
@@ -796,7 +800,7 @@ double* display_raw(void *frame_data, fb_config* fb0, int trig_pin, int colormod
 
 	uint24_t * write_loc_24 = (uint24_t *)(fb0->map) + fb0->width*fb0->height;
 	uint16_t * write_loc_16 = (uint16_t *)(fb0->map) + fb0->width*fb0->height;
-	int t, buffer, pixel, clock_status, waits, pixel_size;
+	int t, pixel, clock_status, waits, pixel_size;
 	if (colormode == RGB888MODE){pixel_size = sizeof(uint24_t);    }
 	else                        {pixel_size = sizeof(uint16_t);    }
 	float *frame_duration_mean = malloc(2*sizeof(float));
@@ -813,8 +817,13 @@ double* display_raw(void *frame_data, fb_config* fb0, int trig_pin, int colormod
 		if(clock_status) {
 			return NULL;
 		}
-
-		buffer = (t+1)%2;
+		if(!fb0->current_buffer){
+			write_loc_24 = fb0->map + 3*fb0->width*fb0->height;
+			write_loc_16 = fb0->map + 2*fb0->width*fb0->height;
+		} else {
+			write_loc_24 = fb0->map;
+			write_loc_16 = fb0->map;
+		}
 		for(pixel = 0; pixel < fb0->width*fb0->height; pixel++) {
 			if(colormode == RGB888MODE){
 				*write_loc_24 = frame_data_24[(t*fb0->size/pixel_size)+pixel];
@@ -824,21 +833,20 @@ double* display_raw(void *frame_data, fb_config* fb0, int trig_pin, int colormod
 				write_loc_16++;
 			}
 		}
+		if(t==0){
+			ioctl(fb0->framebuffer, FBIO_WAITFORVSYNC, &dummy);
+		}
 		flip_buffer(fb0);
 		for (waits = 0; waits < refresh_per_frame; waits++) {
 			ioctl(fb0->framebuffer, FBIO_WAITFORVSYNC, &dummy);
+			if (waits == 0) {
+				digitalWrite(1,HIGH);
+				usleep(2000);
+				digitalWrite(1,LOW);
+			}
 		}
 		if (t != 0) {
 			timings[t-1] = cmp_times(frame_end, frame_start);
-		}
-		if(!buffer){
-			digitalWrite(1, LOW);
-			write_loc_24 = fb0->map + 3*fb0->width*fb0->height;
-			write_loc_16 = fb0->map + 2*fb0->width*fb0->height;
-		} else {
-			write_loc_24 = fb0->map;
-			write_loc_16 = fb0->map;
-			digitalWrite(1, HIGH);
 		}
 	}
 	*frame_duration_mean = mean_long(timings, n_frames-1);
@@ -854,7 +862,7 @@ double* display_grating(void* frame_data, fb_config* fb0, int end_with, int trig
 		pinMode(trig_pin, INPUT);
 		while (digitalRead(trig_pin) == 0) {
 			if (kbhit()) {
-				return 0;
+				return NULL;
 			}
 		}
 	}
@@ -929,7 +937,7 @@ int unload_raw(uint16_t* raw_data) {
 	return 0;
 }
 
-int display_color(fb_config* fb0, uint16_t color_16, uint24_t color_24, int colormode){
+int display_color(fb_config* fb0, uint16_t color_16, uint24_t color_24, int colormode, int blocking){
 	__u32 dummy = 0;
 	uint16_t *write_loc_16;
 	uint24_t *write_loc_24;
@@ -941,7 +949,6 @@ int display_color(fb_config* fb0, uint16_t color_16, uint24_t color_24, int colo
 		write_loc_24 = fb0->map;
 		write_loc_16 = fb0->map;
 	}
-//	ioctl(fb0->framebuffer, FBIO_WAITFORVSYNC, &dummy);
 
 	for(pixel = 0; pixel<fb0->width*fb0->height; pixel++){
 		if(colormode == RGB888MODE){
@@ -952,9 +959,14 @@ int display_color(fb_config* fb0, uint16_t color_16, uint24_t color_24, int colo
 			write_loc_16++;
 		}
 	}
-//	ioctl(fb0.framebuffer, FBIO_WAITFORVSYNC, &dummy);
 
 	flip_buffer(fb0);
+	if(blocking){
+		ioctl(fb0->framebuffer, FBIO_WAITFORVSYNC, &dummy);
+		digitalWrite(1,HIGH);
+		usleep(2000);
+		digitalWrite(1,LOW);
+	}
 	return 0;
 }
 
@@ -1139,14 +1151,14 @@ static PyObject* py_init(PyObject *self, PyObject *args) {
 
 static PyObject* py_displaycolor(PyObject* self, PyObject* args){
     PyObject* fb0_capsule;
-    int r,g,b,colormode;
-        if (!PyArg_ParseTuple(args, "Oiiii", &fb0_capsule,&r,&g,&b,&colormode)) {
+    int r,g,b,colormode,blocking;
+        if (!PyArg_ParseTuple(args, "Oiiiii", &fb0_capsule,&r,&g,&b,&colormode,&blocking)) {
         return NULL;
     }
     uint16_t color_16 = rgb_to_uint(r,g,b);
     uint24_t color_24 = rgb_to_uint_24bit(r,g,b);
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
-    display_color(fb0_pointer,color_16,color_24,colormode);
+    display_color(fb0_pointer,color_16,color_24,colormode,blocking);
     Py_RETURN_NONE;
 }
 
@@ -1158,7 +1170,31 @@ static PyObject* py_loadgrating(PyObject* self, PyObject* args){
         return NULL;
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
+
+    //Check file height/width against framebuffer height/width
+
+    int filedes = open(filename, O_RDWR);
+    if(filedes == -1){
+        perror("Failed to open file");
+        return NULL;
+    }
+
+    fileheader_t* header = mmap(NULL,sizeof(fileheader_t),PROT_READ,MAP_PRIVATE,
+					filedes,0);
+    close(filedes);
+
+    if(header==MAP_FAILED){
+        perror("From mmap for header access");
+        exit(1);
+    }
+
+    if (fb0_pointer->width != header->width || fb0_pointer->height != header->height) {
+        PyErr_Format(PyExc_ValueError, "Grating cannot be displayed at current Screen solution. Grating is %d x %d px, while Screen is %d x %d px.", header->width, header->height, fb0_pointer->width, fb0_pointer->height);
+        return NULL;
+    }
+
     void* grating_data = load_grating(filename,*fb0_pointer);
+
     if (grating_data == NULL) {
         PyErr_Format(PyExc_FileNotFoundError, "You probably mistyped the file name. Parsed as %s", filename);
  	return NULL;
@@ -1187,10 +1223,36 @@ static PyObject* py_debugdumpgrating(PyObject* self, PyObject* args){
 }
 
 static PyObject* py_loadraw(PyObject* self, PyObject* args){
+    PyObject* fb0_capsule;
     char* filename;
-    if (!PyArg_ParseTuple(args, "s", &filename)) {
+    if (!PyArg_ParseTuple(args, "Os", &fb0_capsule, &filename)) {
         return NULL;
     }
+
+    fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
+
+    //Check file height/width against framebuffer height/width
+
+    int filedes = open(filename, O_RDWR);
+    if(filedes == -1){
+        perror("Failed to open file");
+        return NULL;
+    }
+
+    fileheader_raw* header = mmap(NULL,sizeof(fileheader_raw),PROT_READ,MAP_PRIVATE,
+					filedes,0);
+    close(filedes);
+
+    if(header==MAP_FAILED){
+        perror("From mmap for header access");
+        exit(1);
+    }
+
+    if (fb0_pointer->width != header->width || fb0_pointer->height != header->height) {
+        PyErr_Format(PyExc_ValueError, "Raw cannot be displayed at current Screen solution. Raw is %d x %d px, while Screen is %d x %d px.", header->width, header->height, fb0_pointer->width, fb0_pointer->height);
+        return NULL;
+    }
+
     void* raw_data = load_raw(filename);
     if (raw_data == NULL) {
         PyErr_Format(PyExc_FileNotFoundError, "You probably mistyped the file name. Parsed as %s", filename);
@@ -1236,7 +1298,6 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
     void* grating_data = PyCapsule_GetPointer(grating_capsule,"grating_data");
     int colormode;
     if(fb0_pointer->depth==24){
-//	printf("DEBUG: Displaying 24-bit grating");
         colormode = RGB888MODE;
     }else{
         colormode = RGB565MODE;
@@ -1248,7 +1309,8 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
     double* grat_info = display_grating(grating_data,fb0_pointer,end_with,trig_pin,colormode);
     if (grat_info == NULL) {
         free(grat_info);
-        Py_RETURN_NONE;
+        PyErr_Format(PyExc_KeyboardInterrupt, "Key pressed while waiting for pulse - or maybe a very weird error?");
+ 	return NULL;
     } else {
         PyObject* return_tuple = Py_BuildValue("(ddi)",*grat_info,*(grat_info+1),start_time);
         free(grat_info);
@@ -1270,7 +1332,6 @@ static PyObject* py_displayraw(PyObject* self, PyObject* args){
     }
     int colormode;    
     if(fb0_pointer->depth==24){
-//	printf("DEBUG: Displaying 24-bit grating");
         colormode = RGB888MODE;
     }else{
         colormode = RGB565MODE;

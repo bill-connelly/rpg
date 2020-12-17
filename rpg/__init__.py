@@ -271,7 +271,7 @@ class Screen:
         A class encapsulating the raspberry pi's framebuffer,
           with methods to display drifting gratings and solid colors to
           the screen.
- 
+
         ONLY ONE INSTANCE OF THIS OBJECT SHOULD EXIST AT ANY ONE TIME.
           Otherwise both objects will be attempting to manipulate the memory
           assosiated with the linux framebuffer. If a resolution change is desired
@@ -400,7 +400,7 @@ class Screen:
         else:
                 return GratPerfRec(*rawtuple)
 
-    def display_greyscale(self,color):
+    def display_greyscale(self,color,blocking=True):
         """
         Fill the screen with a solid color until something else is
                 displayed to the screen. Calling display_color(GRAY) will
@@ -415,7 +415,7 @@ class Screen:
         if (color<0 or color>255):
                 self.close()
                 raise ValueError("Color must be between each between 0 and 255.")
-        rpigratings.display_color(self.capsule,color,color,color,self.colormode)
+        rpigratings.display_color(self.capsule,color,color,color,self.colormode,blocking)
 
     def display_gratings_randomly(self, dir_containing_gratings, intertrial_time, logfile_name="rpglog.txt"):
         """
@@ -596,7 +596,7 @@ class Screen:
     def _print_log(self, filename, file_type, file_displayed, perf):
         """
         Internal function for print log file
-        
+
         Args:
           filename: string of file displayed
           file_type: string of whether the file was a raw or a grating
@@ -615,10 +615,10 @@ class Screen:
         Internal function for psudorandomizing gratings. Files paths are hashed
         with MD5 to generate a string, which is then sorted to give order. This
         achieves a psuedo random order that is fixed across sessions.
-        
+
         Args:
           gratings: list containing grating path names
-        
+
         Returns:
           list of grating path names psuedorandomzied
         """
@@ -636,10 +636,10 @@ class Screen:
         """
         Destroy this object, cleaning up its memory and restoring previous
         screen settings.
-        
+
         Args:
           None
-          
+
         Returns:
           None
         """
@@ -651,7 +651,7 @@ class Screen:
         self.close()
     def __enter__(self):
         return self
-    def __exit__(self,exception_type,exception_value,traceback):
+    def __exit__(self,exception_type, exception_value, traceback):
         self.close()
 
 class Grating:
@@ -659,9 +659,10 @@ class Grating:
         if type(master).__name__ != "Screen":
             raise ValueError("master must be a Screen instance")
         self.master = master
-        self.capsule = rpigratings.load_grating(master.capsule,filename)
+        self.capsule = rpigratings.load_grating(master.capsule, filename)
     def __del__(self):
-        rpigratings.unload_grating(self.capsule)
+        if "capsule" in self.__dict__:
+            rpigratings.unload_grating(self.capsule)
 
 
 class Raw:
@@ -669,9 +670,10 @@ class Raw:
         if type(master).__name__ != "Screen":
             raise ValueError("master must be a Screen instance")
         self.master = master
-        self.capsule = rpigratings.load_raw(filename)
+        self.capsule = rpigratings.load_raw(master.capsule, filename)
     def __del__(self):
-        rpigratings.unload_raw(self.capsule)
+        if "capsule" in self.__dict__:
+            rpigratings.unload_raw(self.capsule)
 
 def _parse_options(options):
     """

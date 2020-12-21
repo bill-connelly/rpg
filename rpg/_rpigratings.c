@@ -854,7 +854,7 @@ double* display_raw(void *frame_data, fb_config* fb0, int trig_pin, int colormod
 	return frame_duration_mean;
 }
 
-double* display_grating(void* frame_data, fb_config* fb0, int end_with, int trig_pin, int colormode){
+double* display_grating(void* frame_data, fb_config* fb0, int trig_pin, int colormode){
 
 	pinMode(1, OUTPUT);
 	digitalWrite(1, LOW);
@@ -1290,8 +1290,8 @@ static PyObject* py_unloadraw(PyObject* self, PyObject* args) {
 static PyObject* py_displaygrating(PyObject* self, PyObject* args){
     PyObject* fb0_capsule;
     PyObject* grating_capsule;
-    int end_with, trig_pin;
-    if (!PyArg_ParseTuple(args, "OOii", &fb0_capsule,&grating_capsule,&end_with,&trig_pin)) {
+    int trig_pin;
+    if (!PyArg_ParseTuple(args, "OOi", &fb0_capsule,&grating_capsule,&trig_pin)) {
         return NULL;
     }
     fb_config* fb0_pointer = PyCapsule_GetPointer(fb0_capsule,"framebuffer");
@@ -1306,7 +1306,7 @@ static PyObject* py_displaygrating(PyObject* self, PyObject* args){
         return NULL;
     }
     int start_time = time(NULL);
-    double* grat_info = display_grating(grating_data,fb0_pointer,end_with,trig_pin,colormode);
+    double* grat_info = display_grating(grating_data,fb0_pointer,trig_pin,colormode);
     if (grat_info == NULL) {
         free(grat_info);
         PyErr_Format(PyExc_KeyboardInterrupt, "Key pressed while waiting for pulse - or maybe a very weird error?");

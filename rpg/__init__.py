@@ -339,7 +339,7 @@ class Screen:
         filename = os.path.expanduser(filename)
         return Raw(self, filename)
 
-    def display_grating(self, grating, end_with = 127, trigger_pin = 0):
+    def display_grating(self, grating, trigger_pin = 0):
         """
         Display the passed grating object (grating files are created with
         the draw_grating function and loaded with the Screen.load_grating
@@ -363,13 +363,11 @@ class Screen:
         Returns:
           performance record as a named tuple.
         """
-        if 0 > end_with or end_with > 255:
-                raise ValueError("end_with must be in the range 0-255")
         if trigger_pin == 1:
                 raise ValueError("trigger_pin cannot be set to 1. This pin is reserved for feedback")
 
 
-        rawtuple = rpigratings.display_grating(self.capsule, grating.capsule, end_with, trigger_pin)
+        rawtuple = rpigratings.display_grating(self.capsule, grating.capsule, trigger_pin)
         if rawtuple is None:
                 return None
         else:

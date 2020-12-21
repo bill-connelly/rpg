@@ -17,6 +17,7 @@ import time as t
 import os
 import sys
 import hashlib
+import random
 from collections import namedtuple
 
 GratPerfRec = namedtuple("GratingPerformanceRecord",["mean_interframe","stddev_interframe","start_time"])
@@ -422,7 +423,7 @@ class Screen:
                 raise ValueError("Color must be between each between 0 and 255.")
         rpigratings.display_color(self.capsule,color,color,color,self.colormode,blocking)
 
-    def display_gratings_randomly(self, dir_containing_gratings, intertrial_time, logfile_name="rpglog.txt"):
+    def display_gratings_randomly(self, dir_containing_gratings, intertrial_time, algorithm = "md5", logfile_name="rpglog.txt"):
         """
         For each file in directory dir_containing_gratings, attempt to display
         that file as a grating. The order of display is a fixed but psudorandomised.
@@ -441,6 +442,9 @@ class Screen:
           intertrial_time: Time between gratings in seconds. Accuracy limited by
             monitor refresh rate. If intertrial time is set to X seconds, the true
             intertrial time may be anywhere from X to X + 1/[refresh rate] seconds
+          algorithm: Set to either "md5" or "shuffle". "md5" produces a randomization
+            that stays fixed over experiments, while "shuffle" randomizes the order of 
+            playback every cycle of the directory content.
           logfile_name: Name of log file to write performance record to.
             written into directory ~/rpg/logs/
 
@@ -453,7 +457,7 @@ class Screen:
         print("Loading gratings...")
         for file in os.listdir(dir_containing_gratings):
             gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
-        randomized_gratings = self._randomize_grating_list(gratings)
+        randomized_gratings = self._randomize_grating_list(gratings, algorithm = algorithm)
 
         print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
 
@@ -464,7 +468,7 @@ class Screen:
             t.sleep(intertrial_time)
 
 
-    def display_raw_randomly(self, dir_containing_raws, intertrial_time, logfile_name="rpglog.txt"):
+    def display_raw_randomly(self, dir_containing_raws, intertrial_time, algorithm = "md5", logfile_name="rpglog.txt"):
         """
         For each file in directory dir_containing_raws, attempt to display
         that file as a raw. The order of display is a fixed but psudorandomised.
@@ -481,7 +485,10 @@ class Screen:
             to a directory containing raws. Must not contain any other 
             non raw files, or sub directories.
           intertrial_time: Time between raws in seconds. Will have 
-            ~1 millisecond accuracy
+            ~of 1-2 monitor refresh cycles
+          algorithm: Set to either "md5" or "shuffle". "md5" produces a randomization
+            that stays fixed over experiments, while "shuffle" randomizes the order of 
+            playback every cycle of the directory content.
           logfile_name: Name of log file to write performance record to.
             written into directory ~/rpg/logs/
 
@@ -494,7 +501,7 @@ class Screen:
         print("Loading raws...")
         for file in os.listdir(dir_containing_raws):
             raws.append((self.load_raw(dir_containing_raws + "/" + file),dir_containing_raws + "/" + file))
-        randomized_raws = self._randomize_grating_list(raws)
+        randomized_raws = self._randomize_grating_list(raws, algorithm=algorithm)
 
         print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_rawss ] ))
 
@@ -505,7 +512,7 @@ class Screen:
             t.sleep(intertrial_time)
 
 
-    def display_rand_grating_on_pulse(self, dir_containing_gratings, trigger_pin, logfile_name="rpglog.txt"):
+    def display_rand_grating_on_pulse(self, dir_containing_gratings, trigger_pin, algorithm="md5", logfile_name="rpglog.txt"):
         """
         Displays a psudorandom grating from the passed directory in response
         to a 3.3V signal to a GPIO pin. Gauranteed to display each grating
@@ -516,10 +523,13 @@ class Screen:
 
         Args:
           dir_containing_gratings: A relative or absolute directory path
-            to a directory containing gratings. Must not contain any other 
+            to a directory containing gratings. Must not contain any other
             non grating files, or sub directories.
           trigger_pin: Which trigger pin the raspberry pi listens on for the
             3.3V pulse.
+          algorithm: Set to either "md5" or "shuffle". "md5" produces a randomization
+            that stays fixed over experiments, while "shuffle" randomizes the order of
+            playback every time function is called.
           logfile_name: Name of log file to write performance record to.
             written into directory ~/rpg/logs/
 
@@ -534,7 +544,7 @@ class Screen:
         print("Loading gratings...")
         for file in os.listdir(dir_containing_gratings):
             gratings.append((self.load_grating(dir_containing_gratings + "/" + file),dir_containing_gratings + "/" + file))
-        randomized_gratings = self._randomize_grating_list(gratings)
+        randomized_gratings = self._randomize_grating_list(gratings, algorthm=algorithm)
         print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_gratings ] ))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
@@ -551,7 +561,7 @@ class Screen:
 
         print("Waiting for pulses ended")
 
-    def display_rand_raw_on_pulse(self, dir_containing_raws, trigger_pin, logfile_name="rpglog.txt"):
+    def display_rand_raw_on_pulse(self, dir_containing_raws, trigger_pin, algorithm="md5", logfile_name="rpglog.txt"):
         """
         Displays a psudorandom raw from the passed directory in response
         to a 3.3V signal to a GPIO pin. Gauranteed to display each raw
@@ -566,6 +576,9 @@ class Screen:
             non raw files, or sub directories.
           trigger_pin: Which trigger pin the raspberry pi listens on for the
             3.3V pulse.
+          algorithm: Set to either "md5" or "shuffle". "md5" produces a randomization
+            that stays fixed over experiments, while "shuffle" randomizes the order of 
+            playback every time function is called.
           logfile_name: Name of log file to write performance record to.
             written into directory ~/rpg/logs/
 
@@ -580,7 +593,7 @@ class Screen:
         print("Loading raws...")
         for file in os.listdir(dir_containing_raws):
             raws.append((self.load_grating(dir_containing_raws + "/" + file),dir_containing_raws + "/" + file))
-        randomized_raws = self._randomize_grating_list(raws)
+        randomized_raws = self._randomize_grating_list(raws, algorithm=algorithm)
         print("Displaying in order of: " + str([x[1].split("/")[-1] for x in randomized_raws ] ))
         print("Waiting for pulse on pin " + str(trigger_pin) + ".")
         print("Press any key to stop waiting...")
@@ -616,7 +629,7 @@ class Screen:
             file.write("%s: \t %s \t Displayed starting at (unix time): %d \t Average frame duration (micros): %.2f \t  Std Dev of frame duration(FPS): %.2f \n" 
                 %(file_type, file_displayed, perf.start_time, perf.mean_interframe, perf.stddev_interframe))
 
-    def _randomize_grating_list(self, gratings):
+    def _randomize_grating_list(self, gratings, algorithm):
         """
         Internal function for psudorandomizing gratings. Files paths are hashed
         with MD5 to generate a string, which is then sorted to give order. This
@@ -624,19 +637,26 @@ class Screen:
 
         Args:
           gratings: list containing grating path names
+          algorith: Must be "md5" or "shuffle", decides whether order is fixed between
+            runs, or truely random.
 
         Returns:
           list of grating path names psuedorandomzied
         """
-        hashed_gratings = [ hashlib.md5(grating[1].encode()).hexdigest() for grating in gratings]
-        labelled_hashes = enumerate(hashed_gratings)
-        labelled_hashes = [ (x[1], x[0]) for x in labelled_hashes ]
-        sorted_hashes = sorted(labelled_hashes)
-        randomized_gratings = [] 
+        if algorithm == "md5":
+            hashed_gratings = [ hashlib.md5(grating[1].encode()).hexdigest() for grating in gratings]
+            labelled_hashes = enumerate(hashed_gratings)
+            labelled_hashes = [ (x[1], x[0]) for x in labelled_hashes ]
+            sorted_hashes = sorted(labelled_hashes)
+            randomized_gratings = []
 
-        for el in sorted_hashes:
-            randomized_gratings.append( gratings[el[1]] )
-        return randomized_gratings
+            for el in sorted_hashes:
+                randomized_gratings.append( gratings[el[1]] )
+            return randomized_gratings
+        elif algorithm == "shuffle":
+            return random.shuffle(gratings)
+        else:
+            raise ValueError("Algorithm parameter must be either set to 'md5' or 'shuffle'")
 
     def close(self):
         """

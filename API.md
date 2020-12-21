@@ -211,9 +211,9 @@ Fill the screen with a solid color until something else is displayed to the scre
 * Returns:
   * None
 
-### display_gratings_randomly(dir_containing_gratings, intertrial_time, logfile_name):
+### display_gratings_randomly(dir_containing_gratings, intertrial_time, algorithm, logfile_name):
 
-Attempts to display each file in the directory `dir_containing_gratings` as a grating. The order of display is a fixed but psudorandomised, i.e. the order will be the same every trial. See `_randomize_list` for details.
+Attempts to display each file in the directory `dir_containing_gratings` as a grating. Will display gratings in a fixed order across sessions if `algorithm` is `"md5"`, if `algorithm` is set to `"shuffle"` order is randomized on every call to function. See `_randomize_list` for details.
 
 The location of the log file is `~/rpg/logs/` . Gratings are seperated by intertrial_time seconds of the background color set when Screen object created.
 
@@ -221,48 +221,52 @@ This method is blocking, and will not return until all files in directory displa
 
 * Parameters
   * dir_containing_gratings (string) - A relative or absolute directory path to a directory containing gratings. Must not contain any other non grating files, or sub directories.
-  * intertrial_time (float) - Time between gratings in seconds. Will have <1 millisecond accuracy.
+  * intertrial_time (float) - Time between gratings in seconds. Will have accuracy of 1 to 2 refresh cycles.
+  * algorithm (string) - Defaults to `"md5"`. Decides which algorithm is used to randomize gratings. `"md5"` produces a result fixed across experimental sessions while `"shuffle"` randomizes ever cycle of directory contents.
   * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory `~/rpg/logs/`.
 
 * Returns:
   * None
   
   
-### display_raw_randomly(dir_containing_raws, intertrial_time, logfile_name):
+### display_raw_randomly(dir_containing_raws, intertrial_time, algorithm, logfile_name):
 
-Attempts to display each file in the directory `dir_containing_raws` as a raw. The order of display is a fixed but psudorandomised, i.e. the order will be the same every trial. See `_randomize_list` for details.
+Attempts to display each file in the directory `dir_containing_raws` as a raw. Will display gratings in a fixed order across sessions if `algorithm` is `"md5"`, if `algorithm` is set to `"shuffle"` order is randomized on every call to function. See `_randomize_list` for details.
 
 The location of the log file is `~/rpg/logs/` . Raws are seperated by intertrial_time seconds of the background color set when Screen object created.
 
 This method is blocking, and will not return until all files in directory displayed.
 
 * Parameters:
-  * dir_containing_rawss (string) - A relative or absolute directory path to a directory containing raws. Must not contain any other non raw files, or sub directories.
-  * intertrial_time (float) - Time between raws in seconds. Will have <1 millisecond accuracy.
+  * dir_containing_raws (string) - A relative or absolute directory path to a directory containing raws. Must not contain any other non raw files, or sub directories.
+  * intertrial_time (float) - Time between raws in seconds. Will have accuracy of 1 to 2 monitor refresh cycles.
+  * algorithm (string) - Defaults to `"md5"`. Decides which algorithm is used to randomize gratings. `"md5"` produces a result fixed across experimental sessions while `"shuffle"` randomizes ever cycle of directory contents.
   * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory `~/rpg/logs/`.
 
 * Returns:
   * None
   
- ###  display_rand_grating_on_pulse(dir_containing_gratings, trigger_pin, logfile_name):
+ ###  display_rand_grating_on_pulse(dir_containing_gratings, trigger_pin, algorithm, logfile_name):
 
-Displays a psudorandom grating from the passed directory in response to a 3.3V signal to a GPIO pin. Gauranteed to display each grating in directory before playing gratings again. Will display gratings in a fixed order across sessions. Between gratings, displays Screen.background() shade. Function is blocking, but will return in response to a keystroke.
+Displays a psudorandom grating from the passed directory in response to a 3.3V signal to a GPIO pin. Gauranteed to display each grating in directory before playing gratings again. Will display gratings in a fixed order across sessions if `algorithm` is `"md5"`, if `algorithm` is set to `"shuffle"` order is randomized on every call to function. Between gratings displays Screen.background() shade. Function is blocking, but will return in response to a keystroke.
 
 * Paramaterss:
   * dir_containing_gratings (string) - A relative or absolute directory path to a directory containing gratings. Must not contain any other non grating files, or sub directories.
   * trigger_pin (int) - Which trigger pin the raspberry pi listens on for the 3.3V pulse. Pin number is defined by WiringPi library.
+  * algorithm (string) - Defaults to `"md5"`. Decides which algorithm is used to randomize gratings. `"md5"` produces a result fixed across experimental sessions while `"shuffle"` randomizes ever call to function.
   * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory `~/rpg/logs/`.
 
 * Returns:
   * None
 
-### display_rand_raw_on_pulse(dir_containing_raws, trigger_pin, logfile_name):
+### display_rand_raw_on_pulse(dir_containing_raws, trigger_pin, algorithm, logfile_name):
 
-Displays a psudorandom raw from the passed directory in response to a 3.3V signal to a GPIO pin. Gauranteed to display each raw in directory before playing gratings again. Will display raws in a fixed order across sessions. Between raws, displays Screen.background() shade. Function is blocking, but will return in response to a keystroke.
+Displays a psudorandom raw from the passed directory in response to a 3.3V signal to a GPIO pin. Gauranteed to display each raw in directory before playing gratings again. Will display gratings in a fixed order across sessions if `algorithm` is `"md5"`, if `algorithm` is set to `"shuffle"` order is randomized on every call to function. Between raws, displays Screen.background() shade. Function is blocking, but will return in response to a keystroke.
 
 * Paramaters:
   * dir_containing_raws (string) - A relative or absolute directory path to a directory containing raws. Must not contain any other non grating files, or sub directories.
   * trigger_pin (int) - Which trigger pin the raspberry pi listens on for the 3.3V pulse. Pin number is defined by WiringPi library.
+  * algorithm (string) - Defaults to `"md5"`. Decides which algorithm is used to randomize gratings. `"md5"` produces a result fixed across experimental sessions while `"shuffle"` randomizes ever cycle of directory contents.
   * logfile_name (string) - Defaults to `"rpglog.txt"`. Name of log file to write performance record to. Written into directory ~/rpg/logs/
 
 * Returns:
@@ -290,19 +294,14 @@ Internal function for print log file. Unlikely to be called unless you are using
 * Returns:
   * None
   
-### _randomize_list(self, list):
+### _randomize_list(self, list, algorithm):
     
-Internal function for psudorandomizing gratings paths. Files paths are hashed with MD5 to generate a string, which is then sorted to give order. This achieves a psuedo random order that is fixed across sessions.
+Internal function for psudorandomizing gratings paths. If `algorithm` is set to "md5" file paths are hashed with MD5 to generate a string, which is then sorted to give order. This achieves a psuedo random order that is fixed across sessions. By calling with `algorithm` set to "shuffle", lists are randomized with `random.shuffle()` and hence are different on every call. 
 
-If you require this to be truely random on every trial simply replace the contents of this method with:
-
-      import random
-      return random.shuffle(list)
-      
-And then reinstall rpg.
 
 * Parameters:
   * list (list) - A list containing grating/raw path names, or any strings
+  * algorithm (string) - Sets to algorithm used to randomize the gratings. Either "md5" which is fixed over experiments or "shuffle" which randomizes on every call to the function. 
 
 * Returns:
   * A list of with the same elements as that passed in, shuffled, but in an order that is fixed between sessions

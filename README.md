@@ -19,6 +19,10 @@ Before installation you need to set the degrees of visual angle your monitor cov
         
 On line 28 the code will say `#define DEGREES_SUBTENDED 80` change the number `80` to however many degrees your monitor covers. Then press `cntrl-x` to exit `y` to save, and press enter to accept file name.
 
+It will be worthwhile to familiarize yourself with the GPIO layout of the Raspberry Pi, especially the location of physical pin 12, which delivers the Frame Out information, and physical pin 22, which is the pin used as the trigger pin in the example documentation, and is known by the WiringPi pin notation 6.
+
+![](images/GPIO.png)
+ 
 ## Install
 
 Confirm you are in the rpg directory (i.e. the directory with setup.py) and install. You must run install with sudo.

@@ -2,9 +2,9 @@
 ## A high performance python library for displaying visual stimuli on the Raspberry Pi 3 and 4.
 
 ## Getting Started
-If you are unfamiliar with the Raspberry Pi, an excellent starting guide is provided by the Raspberry Pi Foundation [here](https://projects.raspberrypi.org/en/projects/raspberry-pi-getting-started). Once you have gotten the Raspberry Pi started, you have to choose how you will interact with it, either directly through the monitor attached to it, or via secure shell (SSH). We recommend using SSH as it allows the monitor attached to the Raspberry Pi (and used to present stimuli) to be placed in any location. Furthermore, you can send commands to the Raspberry pi even when it is displaying stimuli.  
+If you are unfamiliar with the Raspberry Pi, an excellent starting guide is provided by the Raspberry Pi Foundation [here](https://projects.raspberrypi.org/en/projects/raspberry-pi-getting-started). Once you have gotten the Raspberry Pi started, you have to choose how you will interact with it, either directly through the monitor attached to it, or via secure shell (SSH). We recommend using SSH as it allows the monitor attached to the Raspberry Pi, and that is used to present stimuli, to be placed in any location. Furthermore, you can send commands to the Raspberry pi even when it is displaying stimuli.  
 
-To access the your Raspberry pi via SSH, you need the Raspberry Pi on your local network (you may have to contact your system administrator for that to happen). Then you need to know your Raspberry Pi's IP address. To find this open a terminal press `ctrl-alt-T`. Then type `ifconfig eth0` and you should see a printout like this:
+To access the your Raspberry pi via SSH, you need the Raspberry Pi on your local network (you may have to contact your system administrator for that to happen). Then you need to know your Raspberry Pi's IP address. To find this open a terminal window by pressing `ctrl-alt-T`. Then type `ifconfig eth0` and you should see a printout like this:
 
 ```
     eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500
@@ -17,7 +17,7 @@ To access the your Raspberry pi via SSH, you need the Raspberry Pi on your local
         TX errors 0  dropped 0 overruns 0  carrier 0  collisions 0
 ``` 
 
-The number after `inet` is your IP address (10.60.22.175 in my case). If you are connecting to the LAN via WiFi, this is not your IP address, use the command `ifconfig wlan0` (though you probably know that already).
+The number after `inet` is your IP address (10.60.22.175 in my case). If you are connecting to the LAN via WiFi, this is not your IP address, use the command `ifconfig wlan0`.
 
 Now that you know your Raspberry Pi's IP address, you can access it via SSH. On windows, download the program PuTTY (available at [putty.org](https://www.putty.org/) ). If you have an Apple, open Terminal (available under Applications) and type `ssh pi@IP-ADDRESS` where IP-ADDRESS is the IP address we found out earlier, e.g. `ssh pi@10.60.22.175`. In both cases you will then have to enter your password (which is `raspberry` by default). As you type it in, it will NOT come up. Do not worry. If you enter it successfully and press enter, you will now have remote access to your Raspberry Pi.
 

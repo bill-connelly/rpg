@@ -193,6 +193,9 @@ STATIONARY GRATINGS
     per-frame propagation speed is rounded to the nearest integer number of pixels
     (such that propagation is even each frame), and this speed may be rounded down to zero.
 
+![](images/forbidden_gratings.jpg)
+Gratings generated using the shadded area of parameters will be stationary.
+
 MEMORY MANAGEMENT
     The Raspberry Pi 3 has 1GB of memory, of which typically 750MB is free. Each 1280 x 720
     frame of 16 bit data takes up 14.75MB of ram. A typical 1 seconds grating with no looped

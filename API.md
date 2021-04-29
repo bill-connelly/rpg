@@ -20,7 +20,7 @@
     *  #### [display_rand_raw_on_pulse()](#display_rand_raw_on_pulsedir_containing_raws-trigger_pin-algorithm-logfile_name)
     *  #### [close()](#close)
     *  #### [\_print_log()](#_print_logfilename-file_type-file_displayed-perf)
-    *  #### [\_randomize_list()](#_randomize_listself-list)
+    *  #### [\_randomize_list()](#_randomize_listself-list-algorithm)
 
 ---
 

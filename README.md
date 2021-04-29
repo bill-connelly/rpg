@@ -153,7 +153,7 @@ Once a raw file is produced to the above specification, it can be converted to a
 ```
     >>> convert_raw("~/import/rawmovie.raw", "~/raws/raw_c.raw", 200, 1024, 768, 2)
 ```
-The last argument is the number of monitor refreshes per frame. Specifically, in order to maintain accurate and reproducible timings, typical movie frame rates of 29.97 or 25 cannot be specified directly. Instead, an integer multiple of the duration of a monitor refresh rate is specified. Thus, in order to achieve 30 FPS, the monitor refresh rate should be set to 60, and the final argument should be 2. In order to achieve 25 FPS the monitor refresh rate should be set to 50 Hz, and the final argument 2, or the monitor set to 100 Hz, and the final argument 4.
+The last argument is the number of monitor refreshes per frame. Specifically, in order to maintain accurate and reproducible timings, typical movie frame rates of 29.97 or 25 cannot be specified directly. Instead, an integer multiple of the duration of a monitor refresh rate is specified. Thus, in order to achieve 30 FPS, the monitor refresh rate should be set to 60, and the final argument should be 2. In order to achieve 25 FPS the monitor refresh rate should be set to 50 Hz, and the final argument 2.
 
 The second argument, the number of frames, should not be used to clip movies. The entire movie will be converted if this number is set to less than the duration of the movie on disk, however, only the specified number of frames will be played.
 
@@ -187,7 +187,7 @@ Or you can display a random raw from a directory in response to a 3.3V pulse wit
 Tested on Raspian GNU/Linux 8, Python 3.4.2.
 
 ## Troubleshooting
-STATIONARY GRATINGS
+**STATIONARY GRATINGS**
     Low resolution combined with low propagation speeds (low temporal frequency or
     high spacial frequency) and high FPS may result in unmoving gratings, because the
     per-frame propagation speed is rounded to the nearest integer number of pixels
@@ -196,7 +196,7 @@ STATIONARY GRATINGS
 ![](images/forbidden_gratings.jpg)
 Gratings generated using the shadded area of parameters will be stationary.
 
-MEMORY MANAGEMENT
+**MEMORY MANAGEMENT**
     The Raspberry Pi 3 has 1GB of memory, of which typically 750MB is free. Each 1280 x 720
     frame of 16 bit data takes up 14.75MB of ram. A typical 1 seconds grating with no looped
     frames at 60 Hz therefore takes up 110.6MB. Hence a maximum number of *unlooped* gratings
@@ -206,8 +206,11 @@ MEMORY MANAGEMENT
     where the temporal frequency is less than the duration will require every frame within it 
     generated, and stored to memory. This may lead to crashes if many of these are loaded at once.
 
-DUAL MONITORS
+**DUAL MONITORS**
     The Raspberry Pi 4 has physical support for dual monitors. However, RPG offers no explict
     support for dual monitors. Behaviour with dual monitors is completely untested and likely
     to fail. If you want to use two monitors, use two Raspberry Pis running independently. This
     with insure all timing pulses are as accurate as can be.
+
+**REFRESH RATES**
+    Due to problems with the video firmware, RPG will only work with monitor refresh rates 60Hz or lower (checking for vsynch does not work at high refresh rates). We will continue to test if this bug is fixed. 

@@ -1,6 +1,9 @@
 # RPG
 ## A high performance python library for displaying visual stimuli on the Raspberry Pi 3 and 4.
 
+## Bug with Raspbain Bullseye
+RPG will not work with Raspian Bullseye (the most recent version of the Raspberry Pi OS). You will need to downgrade to Buster which is available [here](http://downloads.raspberrypi.org/raspbian/images/raspbian-2020-02-14/). We are working on a fix, but it is non-trivial.
+
 ## Getting Started
 If you are unfamiliar with the Raspberry Pi, an excellent starting guide is provided by the Raspberry Pi Foundation [here](https://projects.raspberrypi.org/en/projects/raspberry-pi-getting-started). Once you have gotten the Raspberry Pi started, you have to choose how you will interact with it, either directly through the monitor attached to it, or via secure shell (SSH). We recommend using SSH as it allows the monitor attached to the Raspberry Pi, and that is used to present stimuli, to be placed in any location. Furthermore, you can send commands to the Raspberry pi even when it is displaying stimuli.  
 
